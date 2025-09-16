@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O Melhor Site - Spinning Text</title>
+    <style>
+        @font-face {
+            font-family: 'Druk Wide';
+            src: url('drukwide.otf');
+            font-weight: 400 900;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Druk Wide';
+            margin: 0;
+            padding: 0;
+            background: #010010;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100dvh;
+            overflow: hidden;
+        }
+
+        .spinning-text {
+            font-size: 1rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .text-container {
+            position: relative;
+            display: inline-block;
+            perspective: 500px;
+            transform-style: preserve-3d;
+            animation: coolSpin 20s linear infinite;
+        }
+
+        .text-layer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            display: inline-block;
+            transform-style: preserve-3d;
+            white-space: nowrap;
+            color: #444444;
+        }
+
+        .text-layer:last-child, .text-layer:nth-child(2) {
+            color: #ffffff;
+        }
+
+        @keyframes coolSpin {
+            0% {
+                transform: rotateX(0) rotateY(0deg);
+            }
+            50% {
+                transform: rotateX(-20deg) rotateY(180deg);
+            }
+            100% {
+                transform: rotateX(0) rotateY(360deg);
+            }
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .spinning-text {
+                font-size: 2.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .spinning-text {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="spinning-text"><span class="text-container" id="textContainer"></span></div>
+
+    <script>
+        const TEXT_CONTENT = "O Melhor Site";
+        const NUMBER_OF_LAYERS = 25;
+        const Z_STEP = 1;
+
+        function generateTextLayers() {
+            const container = document.getElementById('textContainer');
+            
+            for (let i = 0; i < NUMBER_OF_LAYERS; i++) {
+                const layer = document.createElement('span');
+                layer.className = 'text-layer';
+                layer.textContent = TEXT_CONTENT;
+                
+                const zValue = i * Z_STEP;
+                layer.style.transform = `translateZ(${zValue}px)`;
+                
+                if (i === 0) {
+                    layer.style.position = 'static';
+                    layer.style.opacity = '0';
+                }
+                
+                container.appendChild(layer);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', generateTextLayers);
+    </script>
+</body>
+</html>

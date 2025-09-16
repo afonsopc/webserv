@@ -1,23 +1,29 @@
-CPP = c++
-CFLAGS = -g -Wall -Wextra -Werror -std=c++98
 NAME = webserv
-SRCS = main.cpp src/ServerSocket.cpp src/ClientSocket.cpp src/HttpRequest.cpp src/HttpResponse.cpp src/Config.cpp
-OBJS = $(SRCS:.cpp=.o)
+CC = c++
+CFLAGS = -Wall -Wextra -Werror -std=c++98
+INCLUDES = -I headers
+SRCS = $(shell find src -name "**.cpp")
+OBJ_DIR = obj
+OBJS = $(addprefix $(OBJ_DIR)/, $(SRCS:.cpp=.o))
 
 all: $(NAME)
 
 $(NAME): $(OBJS)
-	$(CPP) $(CFLAGS) -o $@ $^
+	@echo "\033[1;32mCompiling \033[1;0m\"$(OBJS)\"\033[1;32m into \033[1;0m\"$(NAME)\"\033[1;32m.\033[0m"
+	@$(CC) -o $(NAME) $(OBJS) $(CFLAGS) $(INCLUDES)
 
-%.o: %.cpp
-	$(CPP) $(CFLAGS) -c $< -o $@
+$(OBJ_DIR)/%.o: %.cpp
+	@echo "\033[1;32mCompiling \033[1;0m\"$<\"\033[1;32m into \033[1;0m\"$@\"\033[1;32m.\033[0m"
+	@mkdir -p $(OBJ_DIR)
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
-	rm -f $(OBJS)
+	@rm -rf $(OBJ_DIR)
 
 fclean: clean
-	rm -f $(NAME)
+	@rm -rf $(NAME)
 
 re: fclean all
 
-.PHONY: all clean fclean re
+.PHONY: all re clean fclean
