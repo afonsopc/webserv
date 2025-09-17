@@ -3,12 +3,12 @@
 
 #include <string>
 
-class Json;
+class HashMap;
 
 class Server
 {
 public:
-    Server(const Json &config);
+    Server(const HashMap &config);
     int getPort(void) const;
     std::string getHost(void) const;
 
