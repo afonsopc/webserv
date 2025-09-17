@@ -8,41 +8,29 @@
 #include "Server.hpp"
 #include "WebServ.hpp"
 
-int main(int argc, char **argv)
+std::vector<Server> parseConfig(std::ifstream &config_file)
 {
-    if (argc < 2)
-    {
-        std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl;
-        return 1;
-    }
-    std::ifstream configFile(argv[1]);
-    if (!configFile)
-    {
-        std::cerr << "Failed to open config file: " << argv[1] << std::endl;
-        return 1;
-    }
-    std::string configContent((std::istreambuf_iterator<char>(configFile)), std::istreambuf_iterator<char>());
-    configFile.close();
+    std::string configContent((std::istreambuf_iterator<char>(config_file)), std::istreambuf_iterator<char>());
     Json serverConfig1(configContent);
     std::vector<Server> servers;
     std::vector<JsonValue> serverArray = serverConfig1.get("servers").asArray();
     for (std::vector<JsonValue>::const_iterator it = serverArray.begin(); it != serverArray.end(); ++it)
         servers.push_back(Server(it->asObject()));
+    return servers;
+}
+
+int main(int argc, char **argv)
+{
+    if (argc < 2)
+        return (std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl, 1);
+    std::ifstream configFile(argv[1]);
+    if (!configFile)
+        return (std::cerr << "Failed to open config file: " << argv[1] << std::endl, 1);
+    std::vector<Server> servers = parseConfig(configFile);
+    configFile.close();
     WebServ webserv(servers);
     std::cout << "Hello, WebServ!" << std::endl;
 }
-
-// int main(int argc, char **argv)
-// {
-// 	if (argc != 2)
-// 	{
-// 		std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl;
-// 		return 1;
-// 	}
-
-// 	try
-// 	{
-// 		Config config = parseConfig(argv[1]);
 
 // 		ServerSocket server(config.port);
 
