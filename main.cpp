@@ -2,26 +2,29 @@
 #include "src/ClientSocket.hpp"
 #include "src/HttpRequest.hpp"
 #include "src/HttpResponse.hpp"
+#include "src/Config.hpp"
 #include <iostream>
 #include <string>
 
-#define PORT 8080
-#define BACKLOG 10
-
 int main(int argc, char **argv)
 {
-	(void)argc;
-	(void)argv;
+	if (argc != 2)
+	{
+		std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl;
+		return 1;
+	}
 
 	try
 	{
-		ServerSocket server(PORT);
+		Config config = parseConfig(argv[1]);
+
+		ServerSocket server(config.port);
 
 		server.bind();
 
-		server.listen(BACKLOG);
+		server.listen(config.backlog);
 
-		std::cout << "Web server started on port " << PORT << std::endl;
+		std::cout << "Web server started on port " << config.port << std::endl;
 		std::cout << "Press Ctrl+C to stop the server" << std::endl;
 
 		while (true)
