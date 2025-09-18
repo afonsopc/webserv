@@ -104,3 +104,17 @@ Request::Request(const std::string &raw) : Http(parse_http_version(raw), parse_h
                                            path(parse_http_path(raw))
 {
 }
+
+std::ostream &operator<<(std::ostream &os, const Request &request)
+{
+    const char *method_names[] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "UNKNOWN"};
+    const char *version_names[] = {"HTTP/1.0", "HTTP/1.1", "HTTP/2.0", "UNKNOWN"};
+    os << method_names[request.method] << " " << request.path << " " << version_names[request.getVersion()] << "\r\n";
+    HashMap headers = request.getHeaders();
+    std::vector<std::string> keys = headers.keys();
+    for (size_t i = 0; i < keys.size(); i++)
+        os << keys[i] << ": " << headers.get(keys[i]).asString() << "\r\n";
+    os << "\r\n"
+       << request.getBody();
+    return (os);
+}

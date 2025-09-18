@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include <iostream>
 #include "HashMap.hpp"
 
 class Http
@@ -83,6 +84,8 @@ public:
 	void setMethod(e_method method);
 	std::string getPath() const;
 	void setPath(const std::string &path);
+
+	friend std::ostream &operator<<(std::ostream &os, const Request &request);
 };
 
 #endif

@@ -4,8 +4,14 @@
 #include <vector>
 #include <iterator>
 #include <sstream>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <cstring>
+#include <fcntl.h>
 
 #include "HashMap.hpp"
+#include "queue.h"
 #include "Server.hpp"
 #include "WebServ.hpp"
 #include "Http.hpp"
@@ -24,9 +30,30 @@ std::vector<Server> parseConfig(const char *config_file_name)
     return servers;
 }
 
-static Request loadTestRequest(void)
+void request(int client_fd, char *buffer, size_t bytes_read)
 {
-    return Request("POST /api/users HTTP/1.1\r\nHost: localhost:8080\r\nUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36\r\nAccept: application/json, text/plain, */*\r\nAccept-Language: en-US,en;q=0.9,pt;q=0.8\r\nAccept-Encoding: gzip, deflate, br\r\nContent-Type: application/json\r\nContent-Length: 156\r\nConnection: keep-alive\r\nAuthorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxMjMsImV4cCI6MTYzMjQ2NzIwMH0\r\nCookie: session_id=abc123def456; user_pref=theme_dark\r\nReferer: https://localhost:8080/dashboard\r\nCache-Control: no-cache\r\n\r\n{ \"name\" : \"João Silva\", \"email\" : \"joao.silva@example.com\", \"age\" : 28, \"department\" : \"Engineering\", \"skills\" : [ \"JavaScript\", \"Python\", \"C++\" ], \"active\" : true }");
+    std::string request_str(buffer, bytes_read);
+    Request req(request_str);
+    std::cout << "Host: " << req.getHeaders().get("Host").asString() << std::endl;
+    write(client_fd, "HTTP/1.1 200 OK\r\n\r\nHello World", 30);
+}
+
+void serverLoop(int port)
+{
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    address.sin_addr.s_addr = INADDR_ANY;
+
+    bind(server_fd, (struct sockaddr *)&address, sizeof(address));
+    listen(server_fd, 128);
+    setNonBlocking(server_fd);
+    start_event_loop(server_fd, request);
+    close(server_fd);
 }
 
 int main(int argc, char **argv)
@@ -35,6 +62,5 @@ int main(int argc, char **argv)
         return (std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl, 1);
     std::vector<Server> servers = parseConfig(argv[1]);
     WebServ webserv(servers);
-    Request req = loadTestRequest();
-    std::cout << "Hello, WebServ!" << std::endl;
+    serverLoop(3000);
 }
