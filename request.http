@@ -1,0 +1,22 @@
+POST /api/users HTTP/1.1
+Host: localhost:8080
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
+Accept: application/json, text/plain, */*
+Accept-Language: en-US,en;q=0.9,pt;q=0.8
+Accept-Encoding: gzip, deflate, br
+Content-Type: application/json
+Content-Length: 156
+Connection: keep-alive
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxMjMsImV4cCI6MTYzMjQ2NzIwMH0
+Cookie: session_id=abc123def456; user_pref=theme_dark
+Referer: https://localhost:8080/dashboard
+Cache-Control: no-cache
+
+{
+    "name": "João Silva",
+    "email": "joao.silva@example.com",
+    "age": 28,
+    "department": "Engineering",
+    "skills": ["JavaScript", "Python", "C++"],
+    "active": true
+}

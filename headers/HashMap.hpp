@@ -79,9 +79,10 @@ private:
     std::map<std::string, HashMapValue> data_;
 
     void parseJson(const std::string &content);
-    std::string stringifyValue(const HashMapValue &value) const;
+    std::string headerifyValue(const HashMapValue &value) const;
 
 public:
+    std::string stringifyValue(const HashMapValue &value) const;
     HashMap(void);
     HashMap(const std::string &json);
 
@@ -104,6 +105,7 @@ public:
     size_t size(void) const;
     void clear(void);
     std::string stringify(void) const;
+    std::string headerify(void) const;
 };
 
 #endif

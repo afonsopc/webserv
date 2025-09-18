@@ -2,19 +2,19 @@
 #include <sstream>
 #include <stdexcept>
 
-bool HashMap::has(const std::string &key) const { return data_.find(key) != data_.end(); }
-bool HashMap::remove(const std::string &key) { return data_.erase(key) > 0; }
+bool HashMap::has(const std::string &key) const { return (data_.find(key) != data_.end()); }
+bool HashMap::remove(const std::string &key) { return (data_.erase(key) > 0); }
 
 std::vector<std::string> HashMap::keys(void) const
 {
     std::vector<std::string> result;
     for (std::map<std::string, HashMapValue>::const_iterator it = data_.begin(); it != data_.end(); ++it)
         result.push_back(it->first);
-    return result;
+    return (result);
 }
 
-bool HashMap::empty(void) const { return data_.empty(); }
-size_t HashMap::size(void) const { return data_.size(); }
+bool HashMap::empty(void) const { return (data_.empty()); }
+size_t HashMap::size(void) const { return (data_.size()); }
 void HashMap::clear(void) { data_.clear(); }
 
 std::string HashMap::stringify(void) const
@@ -32,7 +32,7 @@ std::string HashMap::stringify(void) const
     }
 
     result += "}";
-    return result;
+    return (result);
 }
 
 void HashMap::parseJson(const std::string &content)
@@ -46,7 +46,7 @@ void HashMap::parseJson(const std::string &content)
         return;
     trimmed = trimmed.substr(start, end - start + 1);
     if (trimmed[0] != '{' || trimmed[trimmed.length() - 1] != '}')
-        throw std::runtime_error("Invalid JSON format");
+        throw(std::runtime_error("Invalid JSON format"));
     trimmed = trimmed.substr(1, trimmed.length() - 2);
 
     size_t pos = 0;
@@ -57,13 +57,13 @@ void HashMap::parseJson(const std::string &content)
             break;
         size_t keyEnd = trimmed.find('"', keyStart + 1);
         if (keyEnd == std::string::npos)
-            throw std::runtime_error("Invalid JSON format: unterminated key");
+            throw(std::runtime_error("Invalid JSON format: unterminated key"));
 
         std::string key = trimmed.substr(keyStart + 1, keyEnd - keyStart - 1);
 
         size_t colonPos = trimmed.find(':', keyEnd);
         if (colonPos == std::string::npos)
-            throw std::runtime_error("Invalid JSON format: missing colon");
+            throw(std::runtime_error("Invalid JSON format: missing colon"));
 
         size_t valueStart = colonPos + 1;
         while (valueStart < trimmed.length() && (trimmed[valueStart] == ' ' || trimmed[valueStart] == '\t'))
@@ -76,7 +76,7 @@ void HashMap::parseJson(const std::string &content)
         {
             valueEnd = trimmed.find('"', valueStart + 1);
             if (valueEnd == std::string::npos)
-                throw std::runtime_error("Invalid JSON format: unterminated string");
+                throw(std::runtime_error("Invalid JSON format: unterminated string"));
             value = HashMapValue(trimmed.substr(valueStart + 1, valueEnd - valueStart - 1));
             valueEnd++;
         }
@@ -120,34 +120,68 @@ void HashMap::parseJson(const std::string &content)
     }
 }
 
+static std::string stringifyArray(const HashMapValue &array, const HashMap &context)
+{
+    std::string result = "[";
+    bool first = true;
+    HashMapValue non_const_array = array;
+    const std::vector<HashMapValue> &arr = non_const_array.asArray();
+    for (std::vector<HashMapValue>::const_iterator it = arr.begin(); it != arr.end(); ++it)
+    {
+        if (!first)
+            result += ",";
+        first = false;
+        result += context.stringifyValue(*it);
+    }
+    result += "]";
+    return (result);
+}
+
+static std::string stringifyObject(const HashMapValue &object, const HashMap &context)
+{
+    std::string result = "{";
+    bool first = true;
+    HashMap non_const_object = object.asObject();
+    std::vector<std::string> keys = non_const_object.keys();
+    for (std::vector<std::string>::const_iterator it = keys.begin(); it != keys.end(); ++it)
+    {
+        if (!first)
+            result += ",";
+        first = false;
+        result += "\"" + *it + "\":" + context.stringifyValue(non_const_object.get(*it));
+    }
+    result += "}";
+    return (result);
+}
+
 std::string HashMap::stringifyValue(const HashMapValue &value) const
 {
     switch (value.getType())
     {
     case HashMapValue::HASHMAP_NULL:
-        return "null";
+        return ("null");
     case HashMapValue::HASHMAP_BOOL:
-        return value.asBool() ? "true" : "false";
+        return (value.asBool() ? "true" : "false");
     case HashMapValue::HASHMAP_INT:
     {
         std::ostringstream oss;
         oss << value.asInt();
-        return oss.str();
+        return (oss.str());
     }
     case HashMapValue::HASHMAP_DOUBLE:
     {
         std::ostringstream oss;
         oss << value.asDouble();
-        return oss.str();
+        return (oss.str());
     }
     case HashMapValue::HASHMAP_STRING:
-        return "\"" + value.asString() + "\"";
+        return ("\"" + value.asString() + "\"");
     case HashMapValue::HASHMAP_ARRAY:
-        return "[]";
+        return (stringifyArray(value, *this));
     case HashMapValue::HASHMAP_OBJECT:
-        return "{}";
+        return (stringifyObject(value, *this));
     default:
-        return "null";
+        return ("null");
     }
 }
 
@@ -158,8 +192,8 @@ HashMapValue HashMap::get(const std::string &key) const
 {
     std::map<std::string, HashMapValue>::const_iterator it = data_.find(key);
     if (it != data_.end())
-        return it->second;
-    return HashMapValue();
+        return (it->second);
+    return (HashMapValue());
 }
 
 void HashMap::set(const std::string &key, const HashMapValue &value) { data_[key] = value; }
@@ -174,8 +208,50 @@ const HashMapValue &HashMap::operator[](const std::string &key) const
 {
     std::map<std::string, HashMapValue>::const_iterator it = data_.find(key);
     if (it != data_.end())
-        return it->second;
+        return (it->second);
 
     static HashMapValue null_value;
-    return null_value;
+    return (null_value);
+}
+
+std::string HashMap::headerifyValue(const HashMapValue &value) const
+{
+    switch (value.getType())
+    {
+    case HashMapValue::HASHMAP_NULL:
+        return ("");
+    case HashMapValue::HASHMAP_BOOL:
+        return (value.asBool() ? "true" : "false");
+    case HashMapValue::HASHMAP_INT:
+    {
+        std::ostringstream oss;
+        oss << value.asInt();
+        return (oss.str());
+    }
+    case HashMapValue::HASHMAP_DOUBLE:
+    {
+        std::ostringstream oss;
+        oss << value.asDouble();
+        return (oss.str());
+    }
+    case HashMapValue::HASHMAP_STRING:
+        return (value.asString());
+    case HashMapValue::HASHMAP_ARRAY:
+    case HashMapValue::HASHMAP_OBJECT:
+        return ("");
+    default:
+        return ("");
+    }
+}
+
+std::string HashMap::headerify(void) const
+{
+    std::string result;
+    for (std::map<std::string, HashMapValue>::const_iterator it = data_.begin(); it != data_.end(); ++it)
+    {
+        if (!result.empty())
+            result += "\r\n";
+        result += it->first + ": " + headerifyValue(it->second);
+    }
+    return (result);
 }
