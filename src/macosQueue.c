@@ -36,15 +36,15 @@ void start_event_loop(int server_fd, request_handler_t handler)
                 }
             }
             else
-            {
-                char buffer[4096];
-                ssize_t bytes = read(events[i].ident, buffer, sizeof(buffer) - 1);
-                if (bytes > 0)
+            { //TODO add timeout to check for socket hang
+                char buffer[4096]; //TODO recv in a loop
+                ssize_t bytes = recv(events[i].ident, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
+                if (bytes > 0) // TODO handle < 0 and == 0 early returns instead
                 {
                     buffer[bytes] = '\0';
                     handler(events[i].ident, buffer, bytes);
                 }
-                close(events[i].ident);
+                close(events[i].ident); //TODO check for keep-alive before closing the socket
             }
         }
     }

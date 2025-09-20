@@ -39,7 +39,7 @@ void start_event_loop(int server_fd, request_handler_t handler)
             else
             {
                 char buffer[4096];
-                ssize_t bytes = read(events[i].data.fd, buffer, sizeof(buffer) - 1);
+                ssize_t bytes = recv(events[i].data.fd, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
                 if (bytes > 0)
                 {
                     buffer[bytes] = '\0';
