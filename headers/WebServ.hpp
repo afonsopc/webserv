@@ -7,10 +7,11 @@
 class WebServ
 {
 public:
-    WebServ(const std::vector<Server> &servers);
+	WebServ(const std::vector<Server> &servers);
+	void loop(void);
 
 private:
-    std::vector<Server> servers;
+	std::vector<Server> servers;
 };
 
 #endif
