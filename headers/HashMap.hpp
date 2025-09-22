@@ -10,6 +10,8 @@ class HashMap;
 
 class HashMapValue
 {
+	friend class HashMap;
+
 public:
 	enum Type
 	{
@@ -67,6 +69,7 @@ public:
 	double asDouble(void) const;
 	const std::string &asString(void) const;
 	std::vector<HashMapValue> &asArray(void);
+	const std::vector<HashMapValue> &asArray(void) const;
 	HashMap asObject(void) const;
 
 	HashMapValue &operator[](size_t index);

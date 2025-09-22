@@ -22,7 +22,6 @@ std::vector<Server> parseConfig(const char *config_file_name)
 	std::ostringstream buffer;
 	buffer << file.rdbuf();
 	std::string configContent = buffer.str();
-	std::cout << "Parsed config: " << configContent << std::endl;
 	HashMap serverConfig1(configContent);
 	std::vector<Server> servers;
 	std::vector<HashMapValue> serverArray = serverConfig1.get("servers").asArray();

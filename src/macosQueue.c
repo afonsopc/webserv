@@ -12,22 +12,35 @@ int setNonBlocking(int fd)
     return (fcntl(fd, F_SETFL, flags | O_NONBLOCK));
 }
 
-void start_event_loop(int server_fd, request_handler_t handler)
+void start_multi_server_event_loop(int *server_fds, int num_servers, request_handler_t handler)
 {
     int kq = kqueue();
     struct kevent change, events[64];
-
-    EV_SET(&change, server_fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-    kevent(kq, &change, 1, NULL, 0, NULL);
+    
+    for (int i = 0; i < num_servers; i++)
+    {
+        EV_SET(&change, server_fds[i], EVFILT_READ, EV_ADD, 0, 0, NULL);
+        kevent(kq, &change, 1, NULL, 0, NULL);
+    }
 
     while (1)
     {
         int nev = kevent(kq, NULL, 0, events, 64, NULL);
         for (int i = 0; i < nev; i++)
         {
-            if ((int)events[i].ident == server_fd)
+            int is_server_socket = 0;
+            for (int j = 0; j < num_servers; j++)
             {
-                int client_fd = accept(server_fd, NULL, NULL);
+                if ((int)events[i].ident == server_fds[j])
+                {
+                    is_server_socket = 1;
+                    break;
+                }
+            }
+            
+            if (is_server_socket)
+            {
+                int client_fd = accept(events[i].ident, NULL, NULL);
                 if (client_fd >= 0)
                 {
                     setNonBlocking(client_fd);

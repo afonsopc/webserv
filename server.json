@@ -5,18 +5,18 @@
       "host": "localhost",
       "root": "www",
       "index": ["index.html"],
-      "locations": [
-        {
-          "path": "/",
-          "try_files": "$uri $uri/ =404"
-        }
-      ],
       "error_pages": [
         {
           "code": 404,
           "page": "/404.html"
         }
       ]
+    },
+    {
+      "port": 1143,
+      "host": "localhost",
+      "root": "www",
+      "index": ["index.html"]
     }
   ]
 }
