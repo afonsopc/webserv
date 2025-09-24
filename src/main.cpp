@@ -11,7 +11,6 @@
 #include <fcntl.h>
 
 #include "HashMap.hpp"
-#include "queue.h"
 #include "Server.hpp"
 #include "WebServ.hpp"
 #include "Http.hpp"
