@@ -3,10 +3,12 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <iostream>
+#include <sstream>
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <signal.h>
 #include <cstdlib>
+#include <cstring>
 #include "Response.hpp"
 #include "Request.hpp"
 
@@ -43,21 +45,102 @@ Server &WebServ::getServerFromClientFd(int client_fd)
 	socklen_t addr_len = sizeof(addr);
 
 	if (getsockname(client_fd, (struct sockaddr *)&addr, &addr_len) == 0)
+	{
+		int port = ntohs(addr.sin_port);
+
 		for (std::vector<Server>::iterator it = servers.begin(); it != servers.end(); ++it)
-			if (it->getPort() == ntohs(addr.sin_port))
+			if (it->getPort() == port)
 				return (*it);
+	}
+
 	throw(std::runtime_error("No server found for client connection"));
 }
 
-void WebServ::request(int client_fd, char *buffer, size_t bytes_read)
+bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 {
 	Server &server = getServerFromClientFd(client_fd);
-	std::string request_str(buffer, bytes_read);
-	Request req(request_str);
+	Request req(complete_request);
 	Response *res = server.handleRequest(req);
+
+	bool keep_alive = false;
+	if (req.getVersion() == Http::HTTP_1_1)
+	{
+		keep_alive = true;
+		if (req.getHeaders().get("Connection").isString())
+		{
+			std::string connection = req.getHeaders().get("Connection").asString();
+			if (connection == "close")
+				keep_alive = false;
+		}
+	}
+	else if (req.getVersion() == Http::HTTP_1_0)
+	{
+		keep_alive = false;
+		if (req.getHeaders().get("Connection").isString())
+		{
+			std::string connection = req.getHeaders().get("Connection").asString();
+			if (connection == "keep-alive")
+				keep_alive = true;
+		}
+	}
+
+	res->setHeader("Connection", keep_alive ? "keep-alive" : "close");
+
+	if (!res->getHeaders().get("Content-Length").isString())
+	{
+		std::ostringstream oss;
+		oss << res->getBody().length();
+		res->setHeader("Content-Length", oss.str());
+	}
+
 	std::string response_str = res->stringify();
 	write(client_fd, response_str.c_str(), response_str.size());
 	delete res;
+	return (keep_alive);
+}
+
+bool WebServ::handleClientData(int client_fd, char *buffer, size_t bytes_read)
+{
+	client_buffers[client_fd].append(buffer, bytes_read);
+
+	std::string &request_buffer = client_buffers[client_fd];
+
+	size_t header_end = request_buffer.find("\r\n\r\n");
+	if (header_end == std::string::npos)
+		return (true);
+
+	std::string headers_part = request_buffer.substr(0, header_end + 4);
+
+	size_t content_length = 0;
+	size_t cl_pos = headers_part.find("Content-Length:");
+	if (cl_pos == std::string::npos)
+		cl_pos = headers_part.find("content-length:");
+
+	if (cl_pos != std::string::npos)
+	{
+		size_t cl_start = headers_part.find(':', cl_pos) + 1;
+		size_t cl_end = headers_part.find('\r', cl_start);
+		if (cl_end != std::string::npos)
+		{
+			std::string cl_str = headers_part.substr(cl_start, cl_end - cl_start);
+			cl_str.erase(0, cl_str.find_first_not_of(" \t"));
+			cl_str.erase(cl_str.find_last_not_of(" \t") + 1);
+			content_length = std::atol(cl_str.c_str());
+		}
+	}
+
+	size_t total_expected = header_end + 4 + content_length;
+	if (request_buffer.length() < total_expected)
+		return (true);
+
+	std::string complete_request = request_buffer.substr(0, total_expected);
+	bool keep_alive = processRequest(client_fd, complete_request);
+
+	request_buffer.erase(0, total_expected);
+
+	if (!keep_alive || request_buffer.empty())
+		client_buffers.erase(client_fd);
+	return (keep_alive);
 }
 
 void WebServ::loop(void)
@@ -92,7 +175,7 @@ void WebServ::loop(void)
 
 	if (server_fds.empty())
 	{
-		std::cerr << "No servers available to run. Exiting." << std::endl;
+		std::cerr << "No servers could be started. Exiting..." << std::endl;
 		return;
 	}
 
@@ -110,7 +193,7 @@ void WebServ::loop(void)
 
 	while (!g_shutdown)
 	{
-		int nfds = epoll_wait(epoll_fd, events, 64, 1000); // timeout 1 segundo
+		int nfds = epoll_wait(epoll_fd, events, 64, 1000);
 		if (nfds == -1 || nfds == 0)
 			continue;
 		for (int i = 0; i < nfds; i++)
@@ -143,14 +226,29 @@ void WebServ::loop(void)
 				if (bytes > 0)
 				{
 					buffer[bytes] = '\0';
-					request(events[i].data.fd, buffer, bytes);
+					bool keep_alive = handleClientData(events[i].data.fd, buffer, bytes);
+
+					if (!keep_alive)
+					{
+						client_buffers.erase(events[i].data.fd);
+						epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+						close(events[i].data.fd);
+					}
 				}
-				close(events[i].data.fd);
+				else if (bytes <= 0)
+				{
+					client_buffers.erase(events[i].data.fd);
+					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+					close(events[i].data.fd);
+				}
 			}
 		}
 	}
 
 	std::cout << "Shutting down servers..." << std::endl;
+
+	client_buffers.clear();
+
 	close(epoll_fd);
 
 	for (std::vector<Server>::iterator it = servers.begin(); it != servers.end(); ++it)
