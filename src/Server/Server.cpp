@@ -69,8 +69,17 @@ bool Server::bindAndListen(void)
 void Server::closeSocket(void)
 {
 	if (fd >= 0)
-	{
 		close(fd);
-		fd = -1;
-	}
+	fd = -1;
+}
+
+Response *Server::handleRequest(Request &req)
+{
+	Response::e_status status = Response::OK;
+	std::string body = "ola DESCONHECIDO (ANONYMO :O) :)\n";
+	if (req.getHeaders().get("Host").isString())
+		body = "ola " + req.getHeaders().get("Host").asString() + req.getPath() + " :)\n";
+	Http::e_version version = Http::HTTP_1_1;
+	HashMap headers = HashMap();
+	return (new Response(version, status, headers, body));
 }

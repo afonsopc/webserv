@@ -2,6 +2,8 @@
 #define SERVER_HPP
 
 #include <string>
+#include "Response.hpp"
+#include "Request.hpp"
 
 class HashMap;
 
@@ -17,6 +19,7 @@ public:
 	bool createSocket(void);
 	bool bindAndListen(void);
 	void closeSocket(void);
+	Response *handleRequest(Request &req);
 
 private:
 	int fd;
