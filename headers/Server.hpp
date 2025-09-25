@@ -4,6 +4,7 @@
 #include <string>
 #include "Response.hpp"
 #include "Request.hpp"
+#include "Route.hpp"
 
 class HashMap;
 
@@ -25,6 +26,7 @@ private:
 	int fd;
 	int port;
 	std::string host;
+	std::vector<Route> routes;
 };
 
 #endif
