@@ -9,6 +9,9 @@
 Server::Server(const HashMap &config)
 	: fd(-1), port(config.get("port").asInt()), host(config.get("host").asString())
 {
+	std::vector<HashMapValue> routesArray = config.get("servers").asArray();
+	for (std::vector<HashMapValue>::const_iterator it = routesArray.begin(); it != routesArray.end(); ++it)
+		routes.push_back(Route(it->asHashMap()));
 }
 
 int Server::getPort(void) const { return port; }

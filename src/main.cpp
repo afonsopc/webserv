@@ -25,7 +25,7 @@ std::vector<Server> parseConfig(const char *config_file_name)
 	std::vector<Server> servers;
 	std::vector<HashMapValue> serverArray = serverConfig1.get("servers").asArray();
 	for (std::vector<HashMapValue>::const_iterator it = serverArray.begin(); it != serverArray.end(); ++it)
-		servers.push_back(Server(it->asObject()));
+		servers.push_back(Server(it->asHashMap()));
 	return servers;
 }
 

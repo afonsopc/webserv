@@ -15,8 +15,8 @@ void HashMapValue::cleanup(void)
 	case HASHMAP_ARRAY:
 		delete data_.array_value;
 		break;
-	case HASHMAP_OBJECT:
-		delete data_.object_value;
+	case HASHMAP_HASHMAP:
+		delete data_.hashmap_value;
 		break;
 	default:
 		break;
@@ -44,8 +44,8 @@ void HashMapValue::copyFrom(const HashMapValue &other)
 	case HASHMAP_ARRAY:
 		data_.array_value = new std::vector<HashMapValue>(*other.data_.array_value);
 		break;
-	case HASHMAP_OBJECT:
-		data_.object_value = new std::map<std::string, HashMapValue>(*other.data_.object_value);
+	case HASHMAP_HASHMAP:
+		data_.hashmap_value = new std::map<std::string, HashMapValue>(*other.data_.hashmap_value);
 		break;
 	}
 }
@@ -105,7 +105,7 @@ bool HashMapValue::isInt(void) const { return type_ == HASHMAP_INT; }
 bool HashMapValue::isDouble(void) const { return type_ == HASHMAP_DOUBLE; }
 bool HashMapValue::isString(void) const { return type_ == HASHMAP_STRING; }
 bool HashMapValue::isArray(void) const { return type_ == HASHMAP_ARRAY; }
-bool HashMapValue::isObject(void) const { return type_ == HASHMAP_OBJECT; }
+bool HashMapValue::isHashMap(void) const { return type_ == HASHMAP_HASHMAP; }
 
 bool HashMapValue::asBool(void) const
 {
@@ -153,14 +153,14 @@ const std::vector<HashMapValue> &HashMapValue::asArray(void) const
 	return *data_.array_value;
 }
 
-HashMap HashMapValue::asObject(void) const
+HashMap HashMapValue::asHashMap(void) const
 {
-	if (type_ != HASHMAP_OBJECT)
-		throw std::runtime_error("HashMapValue is not an object");
+	if (type_ != HASHMAP_HASHMAP)
+		throw std::runtime_error("HashMapValue is not a hashmap");
 
 	HashMap result;
-	for (std::map<std::string, HashMapValue>::const_iterator it = data_.object_value->begin();
-		 it != data_.object_value->end(); ++it)
+	for (std::map<std::string, HashMapValue>::const_iterator it = data_.hashmap_value->begin();
+		 it != data_.hashmap_value->end(); ++it)
 	{
 		result.set(it->first, it->second);
 	}
@@ -184,13 +184,13 @@ HashMapValue &HashMapValue::operator[](size_t index)
 
 HashMapValue &HashMapValue::operator[](const std::string &key)
 {
-	if (type_ != HASHMAP_OBJECT)
+	if (type_ != HASHMAP_HASHMAP)
 	{
 		cleanup();
-		type_ = HASHMAP_OBJECT;
-		data_.object_value = new std::map<std::string, HashMapValue>();
+		type_ = HASHMAP_HASHMAP;
+		data_.hashmap_value = new std::map<std::string, HashMapValue>();
 	}
-	return (*data_.object_value)[key];
+	return (*data_.hashmap_value)[key];
 }
 
 HashMapValue &HashMapValue::operator[](const char *key)

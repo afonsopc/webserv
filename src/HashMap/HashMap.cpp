@@ -169,8 +169,8 @@ void HashMap::parseJson(const std::string &content)
 					for (std::vector<std::string>::const_iterator keyIt = keys.begin(); keyIt != keys.end(); ++keyIt)
 						(*objMap)[*keyIt] = nestedObj.get(*keyIt);
 
-					elemValue.data_.object_value = objMap;
-					elemValue.type_ = HashMapValue::HASHMAP_OBJECT;
+					elemValue.data_.hashmap_value = objMap;
+					elemValue.type_ = HashMapValue::HASHMAP_HASHMAP;
 					elemEnd = objEnd;
 				}
 				else
@@ -238,18 +238,18 @@ static std::string stringifyArray(const HashMapValue &array, const HashMap &cont
 	return (result);
 }
 
-static std::string stringifyObject(const HashMapValue &object, const HashMap &context)
+static std::string stringifyHashmap(const HashMapValue &hashmap, const HashMap &context)
 {
 	std::string result = "{";
 	bool first = true;
-	HashMap non_const_object = object.asObject();
-	std::vector<std::string> keys = non_const_object.keys();
+	HashMap non_const_hashmap = hashmap.asHashMap();
+	std::vector<std::string> keys = non_const_hashmap.keys();
 	for (std::vector<std::string>::const_iterator it = keys.begin(); it != keys.end(); ++it)
 	{
 		if (!first)
 			result += ",";
 		first = false;
-		result += "\"" + *it + "\":" + context.stringifyValue(non_const_object.get(*it));
+		result += "\"" + *it + "\":" + context.stringifyValue(non_const_hashmap.get(*it));
 	}
 	result += "}";
 	return (result);
@@ -279,8 +279,8 @@ std::string HashMap::stringifyValue(const HashMapValue &value) const
 		return ("\"" + value.asString() + "\"");
 	case HashMapValue::HASHMAP_ARRAY:
 		return (stringifyArray(value, *this));
-	case HashMapValue::HASHMAP_OBJECT:
-		return (stringifyObject(value, *this));
+	case HashMapValue::HASHMAP_HASHMAP:
+		return (stringifyHashmap(value, *this));
 	default:
 		return ("null");
 	}
@@ -338,7 +338,7 @@ std::string HashMap::headerifyValue(const HashMapValue &value) const
 	case HashMapValue::HASHMAP_STRING:
 		return (value.asString());
 	case HashMapValue::HASHMAP_ARRAY:
-	case HashMapValue::HASHMAP_OBJECT:
+	case HashMapValue::HASHMAP_HASHMAP:
 		return ("");
 	default:
 		return ("");

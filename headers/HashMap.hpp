@@ -21,7 +21,7 @@ public:
 		HASHMAP_DOUBLE,
 		HASHMAP_STRING,
 		HASHMAP_ARRAY,
-		HASHMAP_OBJECT
+		HASHMAP_HASHMAP
 	};
 
 private:
@@ -34,7 +34,7 @@ private:
 		double double_value;
 		std::string *string_value;
 		std::vector<HashMapValue> *array_value;
-		std::map<std::string, HashMapValue> *object_value;
+		std::map<std::string, HashMapValue> *hashmap_value;
 
 		Data(void);
 		~Data(void);
@@ -62,7 +62,7 @@ public:
 	bool isDouble(void) const;
 	bool isString(void) const;
 	bool isArray(void) const;
-	bool isObject(void) const;
+	bool isHashMap(void) const;
 
 	bool asBool(void) const;
 	int asInt(void) const;
@@ -70,9 +70,10 @@ public:
 	const std::string &asString(void) const;
 	std::vector<HashMapValue> &asArray(void);
 	const std::vector<HashMapValue> &asArray(void) const;
-	HashMap asObject(void) const;
+	HashMap asHashMap(void) const;
 
 	HashMapValue &operator[](size_t index);
+	HashMapValue &NewFunction(size_t index);
 	HashMapValue &operator[](const std::string &key);
 	HashMapValue &operator[](const char *key);
 };
