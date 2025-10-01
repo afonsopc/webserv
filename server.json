@@ -5,14 +5,24 @@
 			"host": "localhost",
 			"routes": [
 				{
-					"path": "/omelhorsite",
-					"redirect": "https://omelhorsite.pt"
+					"path": "/omelhorsite/*",
+					"redirect": "https://omelhorsite.pt",
+					"methods": [
+						"GET"
+					]
 				},
 				{
-					"path": "/*",
+					"path": "/pagman",
 					"index": [
 						"index.html", "index.htm"
 					],
+					"directory": "www",
+					"methods": [
+						"GET"
+					]
+				},
+				{
+					"path": "/*",
 					"directory": "www",
 					"directory_listing": true,
 					"methods": [
@@ -34,7 +44,10 @@
 			"routes": [
 				{
 					"path": "/",
-					"redirect": "https://gnu.org"
+					"redirect": "https://gnu.org",
+					"methods": [
+						"GET"
+					]
 				}
 			]
 		}

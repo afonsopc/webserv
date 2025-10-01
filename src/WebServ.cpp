@@ -22,8 +22,15 @@ void signal_handler(int signal)
 	g_shutdown = 1;
 }
 
-WebServ::WebServ(const std::vector<Server> &servers)
-	: servers(servers) {}
+WebServ::WebServ(const HashMap &config)
+{
+	std::vector<HashMapValue> serverArray = config.get("servers").asArray();
+	for (std::vector<HashMapValue>::const_iterator it = serverArray.begin(); it != serverArray.end(); ++it)
+	{
+		std::cout << "Loading server #" << (servers.size() + 1) << " for: " << it->asHashMap().get("host").asString() << ":" << it->asHashMap().get("port").asInt() << std::endl;
+		servers.push_back(Server(it->asHashMap()));
+	}
+}
 
 Server &WebServ::getServerFromFd(int fd)
 {
@@ -148,7 +155,7 @@ void WebServ::loop(void)
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	std::cout << "Signal handlers configured. Ctrl+C will work now." << std::endl;
+	std::cout << "\nSignal handlers configured. Ctrl+C will work now." << std::endl;
 
 	std::vector<int> server_fds;
 

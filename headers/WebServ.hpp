@@ -9,7 +9,7 @@
 class WebServ
 {
 public:
-	WebServ(const std::vector<Server> &servers);
+	WebServ(const HashMap &config);
 	void loop(void);
 	Server &getServerFromFd(int fd);
 	Server &getServerFromClientFd(int client_fd);

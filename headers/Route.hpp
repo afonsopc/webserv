@@ -9,10 +9,16 @@ class Route
 {
 public:
 	Route(const HashMap &config);
+	bool matches(const Request &req) const;
 
 	Response *handleRequest(Request &req);
 
 private:
+	void load_config(const HashMap &config);
+	void assert_config(void);
+	std::string getMatchedPath(const Request &req) const;
+	Response *redirectResponse(void) const;
+
 	std::string path;
 	std::string redirect;
 	std::vector<std::string> index;
