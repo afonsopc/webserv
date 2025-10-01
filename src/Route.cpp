@@ -76,12 +76,9 @@ std::string Route::getMatchedPath(const Request &req) const
 
 bool Route::matches(const Request &req) const
 {
-	if (req.getPath() == getMatchedPath(req))
-	{
-		std::cout << "Matched route for path: " << path << std::endl;
+	std::string matchedPath = getMatchedPath(req);
+	if (matchedPath != req.getPath())
 		return (true);
-	}
-	std::cout << "No match for route path: " << path << " with request path: " << req.getPath() << std::endl;
 	return (false);
 }
 
