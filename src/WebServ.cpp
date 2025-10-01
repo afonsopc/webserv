@@ -69,6 +69,15 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 	Request req(complete_request);
 	Response *res = server.handleRequest(req);
 
+	if (!res)
+	{
+		Response::e_status status = Response::INTERNAL_SERVER_ERROR;
+		std::string body = "500 Internal Server Error\n";
+		Http::e_version version = Http::HTTP_1_1;
+		HashMap headers = HashMap();
+		res = new Response(version, status, headers, body);
+	}
+
 	bool keep_alive = false;
 	if (req.getVersion() == Http::HTTP_1_1)
 	{

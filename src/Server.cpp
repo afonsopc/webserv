@@ -83,7 +83,10 @@ Response *Server::handleRequest(Request &req)
 {
 	for (size_t i = 0; i < routes.size(); ++i)
 		if (routes[i].matches(req))
+		{
+			std::cout << "Route matched: " << routes[i].getPath() << std::endl;
 			return (routes[i].handleRequest(req));
+		}
 	Response::e_status status = Response::NOT_FOUND;
 	std::string body = "404 Not Found\n";
 	Http::e_version version = Http::HTTP_1_1;

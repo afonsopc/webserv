@@ -5,6 +5,16 @@
 #include <unistd.h>
 #include <iostream>
 #include <cstring>
+#include <fstream>
+#include <sstream>
+#include <sys/stat.h>
+
+std::string Route::getPath(void) const { return path; }
+std::string Route::getRedirect(void) const { return redirect; }
+std::vector<std::string> Route::getIndex(void) const { return index; }
+std::string Route::getDirectory(void) const { return directory; }
+bool Route::getDirectoryListing(void) const { return directory_listing; }
+std::vector<std::string> Route::getMethods(void) const { return methods; }
 
 void Route::load_config(const HashMap &config)
 {
@@ -94,17 +104,89 @@ Response *Route::redirectResponse(void) const
 	return (new Response(version, status, headers, body));
 }
 
-Response *Route::handleRequest(Request &req)
+Response *Route::directoryListingResponse(std::string dirPath, std::string requestPath, DIR *dir)
 {
-	if (!redirect.empty())
-		return (redirectResponse());
+	std::stringstream body;
+
+	body << "<html><body><h1>Directory listing for " << dirPath << "</h1><ul>";
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL)
+	{
+		std::string name = entry->d_name;
+		std::string href = requestPath;
+		if (href.empty() || href[href.size() - 1] != '/')
+			href += "/";
+		href += name;
+		body << "<li><a href=\"" << href << "\">" << name << "</a></li>";
+	}
+	body << "</ul></body></html>";
+	closedir(dir);
+	HashMap headers = HashMap();
+	headers.set("Content-Type", "text/html");
+	return (new Response(Http::HTTP_1_1, Response::IM_A_TEAPOT, headers, body.str()));
+}
+
+Response *Route::fileResponse(const std::string &filePath)
+{
+	std::ifstream file(filePath.c_str());
+	if (!file.is_open())
+		return (notFoundResponse());
+	std::ostringstream oss;
+	oss << file.rdbuf();
+	std::string body = oss.str();
 	Response::e_status status = Response::OK;
-	std::string body = "ola DESCONHECIDO (ANONYMO :O) :)\n";
-	if (req.getHeaders().get("Host").isString())
-		body = "ola " + req.getHeaders().get("Host").asString() + req.getPath() + " :)\n";
+	Http::e_version version = Http::HTTP_1_1;
+	HashMap headers = HashMap();
+	std::cout << "\nALI\n"
+			  << std::endl;
+	return (new Response(version, status, headers, body));
+}
+
+Response *Route::notFoundResponse(void) const
+{
+	Response::e_status status = Response::NOT_FOUND;
+	std::string body = "404 Not Found\n";
 	Http::e_version version = Http::HTTP_1_1;
 	HashMap headers = HashMap();
 	return (new Response(version, status, headers, body));
 }
 
-// /omelhorsite/storage
+static bool isRegularFile(const char *path)
+{
+	struct stat st;
+
+	if (stat(path, &st) != 0)
+		return (false);
+	return (S_ISREG(st.st_mode));
+}
+
+Response *Route::directoryResponse(Request &req)
+{
+	std::string matchedPath = directory + "/" + getMatchedPath(req);
+	std::cout << matchedPath << std::endl;
+	if (isRegularFile(matchedPath.c_str()))
+	{
+		std::cout << "AQUI" << std::endl;
+		return (fileResponse(matchedPath));
+	}
+	if (directory_listing)
+	{
+		DIR *dir = opendir(matchedPath.c_str());
+		if (dir)
+		{
+
+			return (directoryListingResponse(matchedPath, req.getPath(), dir));
+		}
+		return (notFoundResponse());
+	}
+	return (NULL);
+}
+
+Response *Route::handleRequest(Request &req)
+{
+	if (!redirect.empty())
+		return (redirectResponse());
+	if (!directory.empty())
+		return (directoryResponse(req));
+	return (NULL);
+}

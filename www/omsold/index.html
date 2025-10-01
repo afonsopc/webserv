@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="icon" type="image/x-icon" href="pagman.jpg">
+	<title>O MELOR SITE</title>
+	<style>
+		body {
+			font-family: Arial, Helvetica, sans-serif;
+			margin: 20px;
+			background-color: #1c1b22;
+			color: white;
+		}
+	</style>
+
+	<style>
+		.bounds {
+			border: 5px red solid;
+			width: 200px;
+			height: 300px;
+		}
+
+		@keyframes hor-movement {
+			from {
+				margin-left: 0%;
+			}
+
+			to {
+				margin-left: 100%;
+			}
+		}
+
+		@keyframes ver-movement {
+			from {
+				margin-top: 0%;
+			}
+
+			to {
+				margin-top: 100%;
+			}
+		}
+
+		.image {
+			animation-name: hor-movement, ver-movement;
+			animation-duration: 3.141s, 1.414s;
+			animation-iteration-count: infinite;
+			animation-direction: alternate;
+			animation-timing-function: linear;
+		}
+	</style>
+	<style>
+		/* Define o estilo do texto */
+		.texto-grande {
+			font-size: 38px;
+			/* Tamanho da fonte */
+			font-weight: bold;
+			/* Peso da fonte */
+			color: #79adff;
+			/* Cor do texto */
+			transform-style: preserve-3d;
+			/* Preserva o estilo 3D */
+			animation: girar 5s linear infinite;
+			/* Animação de rotação */
+		}
+
+		/* Define a animação de rotação */
+		@keyframes girar {
+			from {
+				transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+			}
+
+			to {
+				transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg);
+			}
+		}
+
+		/* Define o estilo do contêiner de texto */
+		.texto-container {
+			margin-left: 100px;
+			transform-style: preserve-3d;
+			/* Preserva o estilo 3D */
+			transform: translateZ(-100px);
+			/* Distancia o texto do observador */
+		}
+
+		/* Define o estilo das camadas de texto */
+		.texto-camada {
+			transform-style: preserve-3d;
+			/* Preserva o estilo 3D */
+		}
+
+		.texto-camada:nth-child(odd) {
+			transform: rotateY(45deg);
+			/* Rotação ímpar em relação ao eixo Y */
+		}
+
+		.texto-camada:nth-child(even) {
+			transform: rotateY(-45deg);
+			/* Rotação par em relação ao eixo Y */
+		}
+
+		.texto-camada:nth-child(1) {
+			transform: translateZ(100px);
+			/* Distancia a camada do observador */
+		}
+
+		.texto-camada:nth-child(2) {
+			transform: translateZ(200px);
+			/* Distancia a camada do observador */
+		}
+
+		.texto-camada:nth-child(3) {
+			transform: translateZ(300px);
+			/* Distancia a camada do observador */
+		}
+
+		.texto-camada:nth-child(4) {
+			transform: translateZ(400px);
+			/* Distancia a camada do observador */
+		}
+
+		.texto-camada:nth-child(5) {
+			transform: translateZ(500px);
+			/* Distancia a camada do observador */
+		}
+
+		.texto-camada:nth-child(6) {
+			transform: translateZ(600px);
+			/* Distancia a camada do observador */
+		}
+
+		.texto-camada:nth-child(7) {
+			transform: translateZ(700px);
+			/* Distancia a camada do observador */
+		}
+
+		.texto-camada:nth-child(8) {
+			transform: translateZ(800px);
+			/* Distancia a camada do observador */
+		}
+
+		.texto-camada:nth-child(9) {
+			transform: translateZ(900px);
+			/* Distancia a camada do observador */
+		}
+	</style>
+</head>
+
+<body>
+	</div>
+	<img style="height: 300px;" src="/omelhorsite.webp">
+
+	<h1>Bme vindo ao tal... ao unico... ao </h1>
+
+	<br>
+	melhor site!!1!!! :O
+	<div class="texto-container">
+		<div class="texto-grande">O MELHOR</div>
+		<div class="texto-grande">Stite</div>
+		<div class="texto-grande">O MELHOR</div>
+		<div class="texto-grande">Stite</div>
+		<div class="texto-grande">O MELHOR</div>
+		<div class="texto-grande">Stite</div>
+		<div class="texto-grande">O MELHOR</div>
+
+		<div class="texto-grande">Stite</div>
+		<div class="texto-grande">pagman</div>
+	</div>
+
+	<br>
+
+	<img src="/huma.jpg">
+	<br>
+
+</body>
+
+</html>

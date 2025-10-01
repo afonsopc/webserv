@@ -25,7 +25,8 @@ public:
 		BAD_GATEWAY = 502,
 		SERVICE_UNAVAILABLE = 503,
 		MOVED_PERMANENTLY = 301,
-		FOUND = 302
+		FOUND = 302,
+		IM_A_TEAPOT = 418
 	};
 
 private:

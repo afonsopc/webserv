@@ -1,7 +1,7 @@
 NAME = webserv
 CXX = c++
 CC = cc
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 CFLAGS = -Wall -Wextra -Werror
 INCLUDES = -I headers
 CPP_SRCS = $(shell find src -name "*.cpp")
