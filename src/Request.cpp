@@ -2,9 +2,8 @@
 #include <iostream>
 
 Request::e_method Request::getMethod() const { return (method); }
-void Request::setMethod(Request::e_method method) { this->method = method; }
 std::string Request::getPath() const { return (path); }
-void Request::setPath(const std::string &path) { this->path = path; }
+std::string Request::getRaw() const { return (raw); }
 
 static Http::e_version parse_http_version(const std::string &raw)
 {
@@ -106,7 +105,8 @@ static Request::e_method parse_http_method(const std::string &raw)
 
 Request::Request(const std::string &raw) : Http(parse_http_version(raw), parse_http_headers(raw), parse_http_body(raw)),
 										   method(parse_http_method(raw)),
-										   path(parse_http_path(raw))
+										   path(parse_http_path(raw)),
+										   raw(raw)
 {
 }
 

@@ -1,0 +1,43 @@
+#!/home/pvcordeiro/.local/share/mise/installs/ruby/3.4.6/bin/ruby
+
+cookies = {}
+request = ARGV[0]
+request.split("\r\n").each do |line|
+  if line.start_with?("Cookie:")
+	line[7..-1].strip.split(';').each do |cookie|
+	  key, value = cookie.strip.split('=', 2)
+	  cookies[key] = value
+	end
+  end
+end
+
+puts "Content-Type: text/html"
+puts "Set-Cookie: hora_actual=#{Time.now.to_i};"
+puts ""
+puts "<html>"
+puts "<head><title>Ruby CGI Test</title></head>"
+puts "<body>"
+puts "<h1>Hello from Ruby CGI!</h1>"
+if cookies["hora_actual"]
+  last_time = Time.at(cookies["hora_actual"].to_i)
+  seconds_ago = Time.now.to_i - last_time.to_i
+  puts "<p>Last time you visited was #{seconds_ago} seconds ago.</p>"
+else
+  puts "<p>This is your first visit!</p>"
+end
+puts "<p>Current time: #{Time.now}</p>"
+puts "<p>Ruby version: #{RUBY_VERSION}</p>"
+puts "<p>Args count: #{ARGV.length}</p>"
+puts "<ul>"
+ARGV.each_with_index do |arg, index|
+  puts "<li>Arg #{index}: #{arg}</li>"
+end
+puts "</ul>"
+puts "<h2>Environment Variables:</h2>"
+puts "<ul>"
+ENV.each do |key, value|
+  puts "<li><strong>#{key}:</strong> #{value}</li>"
+end
+puts "</ul>"
+puts "</body>"
+puts "</html>"

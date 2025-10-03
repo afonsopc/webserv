@@ -24,6 +24,7 @@
 				{
 				"path": "/cgi/*",
 				"directory": "www/cgi",
+				"cgi": true,
 				"methods": ["GET", "POST"]
 				},
 				{

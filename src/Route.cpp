@@ -1,3 +1,4 @@
+#include "WebServ.hpp"
 #include "Route.hpp"
 #include "HashMap.hpp"
 #include <sys/socket.h>
@@ -8,6 +9,7 @@
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 std::string Route::getPath(void) const { return path; }
 std::string Route::getRedirect(void) const { return redirect; }
@@ -15,6 +17,7 @@ std::vector<std::string> Route::getIndex(void) const { return index; }
 std::string Route::getDirectory(void) const { return directory; }
 bool Route::getDirectoryListing(void) const { return directory_listing; }
 std::vector<std::string> Route::getMethods(void) const { return methods; }
+bool Route::getCgi(void) const { return cgi; }
 
 void Route::load_config(const HashMap &config)
 {
@@ -32,6 +35,7 @@ void Route::load_config(const HashMap &config)
 	if (config.has("directory"))
 		directory = config.get("directory").asString();
 	directory_listing = config.has("directory_listing") && config.get("directory_listing").asBool();
+	cgi = config.has("cgi") && config.get("cgi").asBool();
 	if (config.has("methods"))
 	{
 		std::vector<HashMapValue> methodsArray = config.get("methods").asArray();
@@ -126,13 +130,76 @@ Response *Route::directoryListingResponse(std::string dirPath, std::string reque
 	return (new Response(Http::HTTP_1_1, Response::IM_A_TEAPOT, headers, body.str()));
 }
 
-Response *Route::fileResponse(const std::string &filePath)
+std::string execCgi(Request &req, const std::string &filePath)
 {
+	int pipefd[2];
+	if (pipe(pipefd) == -1)
+		return ("CGI Error: Failed to create pipe\n");
+	pid_t pid = fork();
+	if (pid == -1)
+	{
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return ("CGI Error: Failed to fork\n");
+	}
+	if (pid == 0)
+	{
+		close(pipefd[0]);
+		dup2(pipefd[1], STDOUT_FILENO);
+		close(pipefd[1]);
+		std::string rawRequest = req.getRaw();
+		char *args[] = {const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
+		execve(filePath.c_str(), args, *envp_singleton());
+		std::cerr << "CGI Error: Failed to execute " << filePath << std::endl;
+		exit(1);
+	}
+	else
+	{
+		close(pipefd[1]);
+		std::ostringstream output;
+		char buffer[4096];
+		ssize_t bytesRead;
+		while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer))) > 0)
+			output.write(buffer, bytesRead);
+		close(pipefd[0]);
+		int status;
+		waitpid(pid, &status, 0);
+		return (output.str());
+	}
+}
+
+Response *Route::fileResponse(Request &req, const std::string &filePath)
+{
+	HashMap headers = HashMap();
 	std::ifstream file(filePath.c_str());
 	if (!file.is_open())
 		return (notFoundResponse());
 	std::ostringstream oss;
+	std::string firstLine;
 	oss << file.rdbuf();
+	std::istringstream iss(oss.str());
+	std::getline(iss, firstLine);
+	if (cgi && firstLine.size() >= 2 && firstLine[0] == '#' && firstLine[1] == '!')
+	{
+		oss.str("");
+		std::string cgiOutput = execCgi(req, filePath);
+		std::istringstream iss(cgiOutput);
+		while (true)
+		{
+			std::string header;
+			getline(iss, header);
+			if (header.empty() || header == "\r")
+				break;
+			size_t colonPos = header.find(':');
+			if (colonPos != std::string::npos)
+			{
+				std::string key = header.substr(0, colonPos);
+				std::string value = header.substr(colonPos + 1);
+				headers.set(key, value);
+			}
+		}
+		oss << iss.rdbuf();
+	}
 	std::string body = oss.str();
 	Response::e_status status = Response::OK;
 	Http::e_version version = Http::HTTP_1_1;
@@ -163,7 +230,7 @@ Response *Route::directoryResponse(Request &req)
 	std::string matchedPath = directory + "/" + getMatchedPath(req);
 	std::cout << matchedPath << std::endl;
 	if (isRegularFile(matchedPath.c_str()))
-		return (fileResponse(matchedPath));
+		return (fileResponse(req, matchedPath));
 	if (directory_listing)
 	{
 		DIR *dir = opendir(matchedPath.c_str());

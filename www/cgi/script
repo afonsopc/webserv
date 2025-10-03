@@ -1,0 +1,3 @@
+#!/usr/bin/python3
+
+print("These are the recent edits made to the code files in the specified path:")
