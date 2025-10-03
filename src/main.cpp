@@ -15,8 +15,29 @@
 #include "WebServ.hpp"
 #include "Http.hpp"
 
-int main(int argc, char **argv)
+int *argc_singleton(void)
 {
+	static int argc;
+	return (&argc);
+}
+
+char ***argv_singleton(void)
+{
+	static char **argv;
+	return (&argv);
+}
+
+char ***envp_singleton(void)
+{
+	static char **envp;
+	return (&envp);
+}
+
+int main(int argc, char **argv, char **envp)
+{
+	*argc_singleton() = argc;
+	*argv_singleton() = argv;
+	*envp_singleton() = envp;
 	if (argc < 2)
 		return (std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl, 1);
 	std::ifstream file(argv[1]);

@@ -1,6 +1,10 @@
 #ifndef WEBSERV_HPP
 #define WEBSERV_HPP
 
+int *argc_singleton(void);
+char ***argv_singleton(void);
+char ***envp_singleton(void);
+
 #include <vector>
 #include <map>
 #include <string>

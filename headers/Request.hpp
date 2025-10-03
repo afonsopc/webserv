@@ -25,13 +25,13 @@ public:
 private:
 	e_method method;
 	std::string path;
+	std::string raw;
 
 public:
 	Request(const std::string &raw);
 	e_method getMethod() const;
-	void setMethod(e_method method);
 	std::string getPath() const;
-	void setPath(const std::string &path);
+	std::string getRaw() const;
 
 	friend std::ostream &operator<<(std::ostream &os, const Request &request);
 };
