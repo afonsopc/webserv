@@ -22,6 +22,11 @@
 					]
 				},
 				{
+				"path": "/cgi/*",
+				"directory": "www/cgi",
+				"methods": ["GET", "POST"]
+				},
+				{
 					"path": "/*",
 					"directory": "www",
 					"directory_listing": true,
