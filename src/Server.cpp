@@ -44,15 +44,22 @@ bool Server::initialize(void)
 
 Response *Server::handleRequest(Request &req)
 {
+	if (req.getVersion() == Http::HTTP_1_1)
+	{
+		if (!req.getHeaders().get("Host").isString())
+			return (new Response(Http::HTTP_1_1, 400, HashMap(), "400 Bad Request: Missing Host header\n"));
+		std::string host_header = req.getHeaders().get("Host").asString();
+		size_t colon_pos = host_header.find(':');
+		std::string request_host = host_header.substr(0, colon_pos);
+		std::string server_host = getHost();
+		if (request_host != server_host)
+			return (new Response(Http::HTTP_1_1, 400, HashMap(), "400 Bad Request: Host mismatch\n"));
+	}
 	for (size_t i = 0; i < routes.size(); ++i)
 		if (routes[i].matches(req))
 		{
 			std::cout << "Route matched: " << routes[i].getPath() << std::endl;
 			return (routes[i].handleRequest(req));
 		}
-	int status = 404;
-	std::string body = "404 Not Found\n";
-	Http::e_version version = Http::HTTP_1_1;
-	HashMap headers = HashMap();
-	return (new Response(version, status, headers, body));
+	return (new Response(Http::HTTP_1_1, 404, HashMap(), "404 Not Found\n"));
 }

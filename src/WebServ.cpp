@@ -79,14 +79,7 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 	Response *res = server->handleRequest(req);
 
 	if (!res)
-	{
-		int status = 500;
-		std::string body = "500 Internal Server Error\n";
-		Http::e_version version = Http::HTTP_1_1;
-		HashMap headers = HashMap();
-		res = new Response(version, status, headers, body);
-	}
-
+		res = new Response(Http::HTTP_1_1, 500, HashMap(), "500 Internal Server Error\n");
 	bool keep_alive = false;
 	if (req.getVersion() == Http::HTTP_1_1)
 	{
@@ -140,7 +133,6 @@ bool WebServ::handleClientData(int client_fd, char *buffer, size_t bytes_read)
 	size_t cl_pos = headers_part.find("Content-Length:");
 	if (cl_pos == std::string::npos)
 		cl_pos = headers_part.find("content-length:");
-
 	if (cl_pos != std::string::npos)
 	{
 		size_t cl_start = headers_part.find(':', cl_pos) + 1;
@@ -174,40 +166,31 @@ void WebServ::loop(void)
 	signal(SIGTERM, signal_handler);
 
 	std::cout << "\nSignal handlers configured. Ctrl+C will work now." << std::endl;
-
 	std::vector<int> server_fds;
-
 	for (size_t i = 0; i < servers.size(); ++i)
 	{
 		std::cout << "Starting server on http://" << servers[i]->getHost() << ":" << servers[i]->getPort() << std::endl;
-
 		if (!servers[i]->initialize())
 		{
 			std::cerr << "Failed to initialize server on " << servers[i]->getHost() << ":" << servers[i]->getPort() << std::endl;
 			continue;
 		}
-
 		server_fds.push_back(servers[i]->getSocket().getFd());
 	}
-
 	if (server_fds.empty())
 	{
 		std::cerr << "No servers could be started. Exiting..." << std::endl;
 		return;
 	}
-
 	std::cout << "Starting event loop. Press Ctrl+C to stop." << std::endl;
-
 	int epoll_fd = epoll_create1(0);
 	struct epoll_event event, events[64];
-
 	for (size_t i = 0; i < server_fds.size(); ++i)
 	{
 		event.events = EPOLLIN;
 		event.data.fd = server_fds[i];
 		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fds[i], &event);
 	}
-
 	while (!g_shutdown)
 	{
 		int nfds = epoll_wait(epoll_fd, events, 64, 1000);

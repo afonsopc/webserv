@@ -43,7 +43,16 @@ int main(int argc, char **argv, char **envp)
 	std::ifstream file(argv[1]);
 	std::ostringstream buffer;
 	buffer << file.rdbuf();
-	HashMap config(buffer.str());
-	WebServ webserv(config);
-	webserv.loop();
+	try
+	{
+		HashMap config(buffer.str());
+		WebServ webserv(config);
+		webserv.loop();
+	}
+	catch (const std::exception &e)
+	{
+		std::cerr << "\nError: " << e.what() << std::endl;
+		return (1);
+	}
+	return (0);
 }

@@ -212,14 +212,7 @@ Response *Route::fileResponse(Request &req, const std::string &filePath)
 	return (new Response(version, status, headers, body));
 }
 
-Response *Route::notFoundResponse(void) const
-{
-	int status = 404;
-	std::string body = "404 Not Found\n";
-	Http::e_version version = Http::HTTP_1_1;
-	HashMap headers = HashMap();
-	return (new Response(version, status, headers, body));
-}
+Response *Route::notFoundResponse(void) const { return (new Response(Http::HTTP_1_1, 404, HashMap(), "404 Not Found\n")); }
 
 static bool isRegularFile(const char *path)
 {
