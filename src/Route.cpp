@@ -203,7 +203,6 @@ Response *Route::fileResponse(Request &req, const std::string &filePath)
 	std::string body = oss.str();
 	Response::e_status status = Response::OK;
 	Http::e_version version = Http::HTTP_1_1;
-	HashMap headers = HashMap();
 	return (new Response(version, status, headers, body));
 }
 
