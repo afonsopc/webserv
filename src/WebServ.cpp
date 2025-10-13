@@ -1,4 +1,5 @@
 #include "WebServ.hpp"
+#include "Socket.hpp"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -35,15 +36,17 @@ WebServ::WebServ(const HashMap &config)
 Server &WebServ::getServerFromFd(int fd)
 {
 	for (std::vector<Server>::iterator it = servers.begin(); it != servers.end(); ++it)
-		if (it->getFd() == fd)
+		if (it->getSocket().getFd() == fd)
 			return (*it);
 	throw(std::runtime_error("Server not found for given file descriptor"));
 }
 
-int WebServ::setNonBlocking(int fd)
+bool WebServ::setNonBlocking(int fd)
 {
 	int flags = fcntl(fd, F_GETFL, 0);
-	return (fcntl(fd, F_SETFL, flags | O_NONBLOCK));
+	if (flags == -1)
+		return (false);
+	return (fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1);
 }
 
 Server &WebServ::getServerFromClientFd(int client_fd)
@@ -172,21 +175,13 @@ void WebServ::loop(void)
 	{
 		std::cout << "Starting server on http://" << it->getHost() << ":" << it->getPort() << std::endl;
 
-		if (!it->createSocket())
+		if (!it->initialize())
 		{
-			std::cerr << "Failed to create socket for server on port " << it->getPort() << std::endl;
+			std::cerr << "Failed to initialize server on " << it->getHost() << ":" << it->getPort() << std::endl;
 			continue;
 		}
 
-		if (!it->bindAndListen())
-		{
-			std::cerr << "Failed to bind/listen for server on port " << it->getPort() << std::endl;
-			it->closeSocket();
-			continue;
-		}
-
-		setNonBlocking(it->getFd());
-		server_fds.push_back(it->getFd());
+		server_fds.push_back(it->getSocket().getFd());
 	}
 
 	if (server_fds.empty())
@@ -226,7 +221,8 @@ void WebServ::loop(void)
 
 			if (is_server_socket)
 			{
-				int client_fd = accept(events[i].data.fd, NULL, NULL);
+				Server &server = getServerFromFd(events[i].data.fd);
+				int client_fd = server.getSocket().acceptConnection();
 				if (client_fd >= 0)
 				{
 					setNonBlocking(client_fd);
@@ -268,7 +264,7 @@ void WebServ::loop(void)
 	close(epoll_fd);
 
 	for (std::vector<Server>::iterator it = servers.begin(); it != servers.end(); ++it)
-		it->closeSocket();
+		it->getSocket().close();
 
 	std::cout << "Server shutdown complete." << std::endl;
 }

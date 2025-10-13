@@ -137,8 +137,6 @@ Response *Route::fileResponse(const std::string &filePath)
 	Response::e_status status = Response::OK;
 	Http::e_version version = Http::HTTP_1_1;
 	HashMap headers = HashMap();
-	std::cout << "\nALI\n"
-			  << std::endl;
 	return (new Response(version, status, headers, body));
 }
 
@@ -165,18 +163,12 @@ Response *Route::directoryResponse(Request &req)
 	std::string matchedPath = directory + "/" + getMatchedPath(req);
 	std::cout << matchedPath << std::endl;
 	if (isRegularFile(matchedPath.c_str()))
-	{
-		std::cout << "AQUI" << std::endl;
 		return (fileResponse(matchedPath));
-	}
 	if (directory_listing)
 	{
 		DIR *dir = opendir(matchedPath.c_str());
 		if (dir)
-		{
-
 			return (directoryListingResponse(matchedPath, req.getPath(), dir));
-		}
 		return (notFoundResponse());
 	}
 	return (NULL);

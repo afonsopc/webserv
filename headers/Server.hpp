@@ -7,25 +7,24 @@
 #include "Route.hpp"
 
 class HashMap;
+class Socket;
 
 class Server
 {
 public:
 	Server(const HashMap &config);
+	~Server();
+
 	int getPort(void) const;
 	std::string getHost(void) const;
-	int getFd(void) const;
-	void setFd(int fd);
+	Socket &getSocket(void);
+	const Socket &getSocket(void) const;
 
-	bool createSocket(void);
-	bool bindAndListen(void);
-	void closeSocket(void);
+	bool initialize(void);
 	Response *handleRequest(Request &req);
 
 private:
-	int fd;
-	int port;
-	std::string host;
+	Socket *socket;
 	std::vector<Route> routes;
 };
 

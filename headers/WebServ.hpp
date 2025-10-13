@@ -15,7 +15,7 @@ public:
 	Server &getServerFromClientFd(int client_fd);
 	bool processRequest(int client_fd, const std::string &complete_request);
 	bool handleClientData(int client_fd, char *buffer, size_t bytes_read);
-	int setNonBlocking(int fd);
+	bool setNonBlocking(int fd);
 
 private:
 	std::vector<Server> servers;

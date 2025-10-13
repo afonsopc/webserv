@@ -1,13 +1,16 @@
 #include "Server.hpp"
 #include "HashMap.hpp"
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
+#include "Socket.hpp"
 #include <iostream>
-#include <cstring>
+
+Server::~Server() { delete (socket); }
+int Server::getPort(void) const { return (socket->getPort()); }
+std::string Server::getHost(void) const { return (socket->getHost()); }
+Socket &Server::getSocket(void) { return (*socket); }
+const Socket &Server::getSocket(void) const { return (*socket); }
 
 Server::Server(const HashMap &config)
-	: fd(-1), port(config.get("port").asInt()), host(config.get("host").asString())
+	: socket(new Socket(config.get("host").asString(), config.get("port").asInt()))
 {
 	std::vector<HashMapValue> routesArray = config.get("routes").asArray();
 	for (std::vector<HashMapValue>::const_iterator it = routesArray.begin(); it != routesArray.end(); ++it)
@@ -17,66 +20,26 @@ Server::Server(const HashMap &config)
 	}
 }
 
-int Server::getPort(void) const { return port; }
-std::string Server::getHost(void) const { return host; }
-int Server::getFd(void) const { return fd; }
-void Server::setFd(int fd) { this->fd = fd; }
-
-bool Server::createSocket(void)
+bool Server::initialize(void)
 {
-	fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (fd < 0)
+	if (!socket->create())
 	{
-		std::cerr << "Failed to create socket for server on " << host << ":" << port << std::endl;
-		return false;
+		std::cerr << "Failed to create socket for server on " << socket->getHost() << ":" << socket->getPort() << std::endl;
+		return (false);
 	}
-
-	int opt = 1;
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+	if (!socket->bindAndListen())
 	{
-		std::cerr << "Failed to set socket options for server on " << host << ":" << port << std::endl;
-		close(fd);
-		fd = -1;
-		return false;
+		std::cerr << "Failed to bind/listen for server on " << socket->getHost() << ":" << socket->getPort() << std::endl;
+		socket->close();
+		return (false);
 	}
-
-	return true;
-}
-
-bool Server::bindAndListen(void)
-{
-	if (fd < 0)
+	if (!socket->setNonBlocking())
 	{
-		std::cerr << "Cannot bind: socket not created for server on " << host << ":" << port << std::endl;
-		return false;
+		std::cerr << "Failed to set non-blocking for server on " << socket->getHost() << ":" << socket->getPort() << std::endl;
+		socket->close();
+		return (false);
 	}
-
-	struct sockaddr_in address;
-	memset(&address, 0, sizeof(address));
-	address.sin_family = AF_INET;
-	address.sin_port = htons(port);
-	address.sin_addr.s_addr = INADDR_ANY;
-
-	if (bind(fd, (struct sockaddr *)&address, sizeof(address)) < 0)
-	{
-		std::cerr << "Bind failed on port " << port << std::endl;
-		return false;
-	}
-
-	if (listen(fd, 128) < 0)
-	{
-		std::cerr << "Listen failed on port " << port << std::endl;
-		return false;
-	}
-
-	return true;
-}
-
-void Server::closeSocket(void)
-{
-	if (fd >= 0)
-		close(fd);
-	fd = -1;
+	return (true);
 }
 
 Response *Server::handleRequest(Request &req)
