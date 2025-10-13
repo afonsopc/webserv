@@ -29,15 +29,21 @@ WebServ::WebServ(const HashMap &config)
 	for (std::vector<HashMapValue>::const_iterator it = serverArray.begin(); it != serverArray.end(); ++it)
 	{
 		std::cout << "Loading server #" << (servers.size() + 1) << " for: " << it->asHashMap().get("host").asString() << ":" << it->asHashMap().get("port").asInt() << std::endl;
-		servers.push_back(Server(it->asHashMap()));
+		servers.push_back(new Server(it->asHashMap()));
 	}
 }
 
-Server &WebServ::getServerFromFd(int fd)
+WebServ::~WebServ()
 {
-	for (std::vector<Server>::iterator it = servers.begin(); it != servers.end(); ++it)
-		if (it->getSocket().getFd() == fd)
-			return (*it);
+	for (size_t i = 0; i < servers.size(); ++i)
+		delete (servers[i]);
+}
+
+Server *WebServ::getServerFromFd(int fd)
+{
+	for (size_t i = 0; i < servers.size(); ++i)
+		if (servers[i]->getSocket().getFd() == fd)
+			return (servers[i]);
 	throw(std::runtime_error("Server not found for given file descriptor"));
 }
 
@@ -49,7 +55,7 @@ bool WebServ::setNonBlocking(int fd)
 	return (fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1);
 }
 
-Server &WebServ::getServerFromClientFd(int client_fd)
+Server *WebServ::getServerFromClientFd(int client_fd)
 {
 	struct sockaddr_in addr;
 	socklen_t addr_len = sizeof(addr);
@@ -58,9 +64,9 @@ Server &WebServ::getServerFromClientFd(int client_fd)
 	{
 		int port = ntohs(addr.sin_port);
 
-		for (std::vector<Server>::iterator it = servers.begin(); it != servers.end(); ++it)
-			if (it->getPort() == port)
-				return (*it);
+		for (size_t i = 0; i < servers.size(); ++i)
+			if (servers[i]->getPort() == port)
+				return (servers[i]);
 	}
 
 	throw(std::runtime_error("No server found for client connection"));
@@ -68,9 +74,9 @@ Server &WebServ::getServerFromClientFd(int client_fd)
 
 bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 {
-	Server &server = getServerFromClientFd(client_fd);
+	Server *server = getServerFromClientFd(client_fd);
 	Request req(complete_request);
-	Response *res = server.handleRequest(req);
+	Response *res = server->handleRequest(req);
 
 	if (!res)
 	{
@@ -171,17 +177,17 @@ void WebServ::loop(void)
 
 	std::vector<int> server_fds;
 
-	for (std::vector<Server>::iterator it = servers.begin(); it != servers.end(); ++it)
+	for (size_t i = 0; i < servers.size(); ++i)
 	{
-		std::cout << "Starting server on http://" << it->getHost() << ":" << it->getPort() << std::endl;
+		std::cout << "Starting server on http://" << servers[i]->getHost() << ":" << servers[i]->getPort() << std::endl;
 
-		if (!it->initialize())
+		if (!servers[i]->initialize())
 		{
-			std::cerr << "Failed to initialize server on " << it->getHost() << ":" << it->getPort() << std::endl;
+			std::cerr << "Failed to initialize server on " << servers[i]->getHost() << ":" << servers[i]->getPort() << std::endl;
 			continue;
 		}
 
-		server_fds.push_back(it->getSocket().getFd());
+		server_fds.push_back(servers[i]->getSocket().getFd());
 	}
 
 	if (server_fds.empty())
@@ -221,8 +227,8 @@ void WebServ::loop(void)
 
 			if (is_server_socket)
 			{
-				Server &server = getServerFromFd(events[i].data.fd);
-				int client_fd = server.getSocket().acceptConnection();
+				Server *server = getServerFromFd(events[i].data.fd);
+				int client_fd = server->getSocket().acceptConnection();
 				if (client_fd >= 0)
 				{
 					setNonBlocking(client_fd);
@@ -263,8 +269,8 @@ void WebServ::loop(void)
 
 	close(epoll_fd);
 
-	for (std::vector<Server>::iterator it = servers.begin(); it != servers.end(); ++it)
-		it->getSocket().close();
+	for (size_t i = 0; i < servers.size(); ++i)
+		servers[i]->getSocket().close();
 
 	std::cout << "Server shutdown complete." << std::endl;
 }
