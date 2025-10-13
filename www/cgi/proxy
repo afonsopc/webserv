@@ -106,6 +106,10 @@ def main():
             print(error_msg)
             sys.stdout.flush()
             return
+        if response.status_code == 304:
+            send_response_headers(response.status_code, response.headers, 0, base_path)
+            sys.stdout.flush()
+            return
         content = response.content
         content_type = response.headers.get('Content-Type', '').lower()
         if 'text/html' in content_type or 'text/css' in content_type or 'javascript' in content_type:
