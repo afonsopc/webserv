@@ -22,10 +22,10 @@
 					]
 				},
 				{
-				"path": "/cgi/*",
-				"directory": "www/cgi",
-				"cgi": true,
-				"methods": ["GET", "POST"]
+					"path": "/cgi/*",
+					"directory": "www/cgi",
+					"cgi": true,
+					"methods": ["GET", "POST"]
 				},
 				{
 					"path": "/*",
@@ -46,14 +46,14 @@
 		},
 		{
 			"port": 1143,
-			"host": "localhost",
+			"host": "0.0.0.0",
 			"routes": [
 				{
-					"path": "/",
-					"redirect": "https://gnu.org",
-					"methods": [
-						"GET"
-					]
+					"path": "/*",
+					"directory": "www/cgi",
+					"index": ["proxy"],
+					"cgi": true,
+					"methods": ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"]
 				}
 			]
 		}

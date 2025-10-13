@@ -100,7 +100,7 @@ Response *Route::redirectResponse(void) const
 {
 	if (redirect.empty())
 		return (NULL);
-	Response::e_status status = Response::MOVED_PERMANENTLY;
+	int status = 301;
 	std::string body = "Redirecting to " + redirect + "\n";
 	Http::e_version version = Http::HTTP_1_1;
 	HashMap headers = HashMap();
@@ -127,7 +127,7 @@ Response *Route::directoryListingResponse(std::string dirPath, std::string reque
 	closedir(dir);
 	HashMap headers = HashMap();
 	headers.set("Content-Type", "text/html");
-	return (new Response(Http::HTTP_1_1, Response::IM_A_TEAPOT, headers, body.str()));
+	return (new Response(Http::HTTP_1_1, 418, headers, body.str()));
 }
 
 std::string execCgi(Request &req, const std::string &filePath)
@@ -179,11 +179,18 @@ Response *Route::fileResponse(Request &req, const std::string &filePath)
 	oss << file.rdbuf();
 	std::istringstream iss(oss.str());
 	std::getline(iss, firstLine);
+	int status = 200;
 	if (cgi && firstLine.size() >= 2 && firstLine[0] == '#' && firstLine[1] == '!')
 	{
 		oss.str("");
 		std::string cgiOutput = execCgi(req, filePath);
 		std::istringstream iss(cgiOutput);
+		std::string statusLine;
+		std::getline(iss, statusLine);
+		if (!statusLine.empty() && statusLine[statusLine.size() - 1] == '\r')
+			statusLine.erase(statusLine.size() - 1);
+		if (!statusLine.empty())
+			status = std::atoi(statusLine.c_str());
 		while (true)
 		{
 			std::string header;
@@ -201,14 +208,13 @@ Response *Route::fileResponse(Request &req, const std::string &filePath)
 		oss << iss.rdbuf();
 	}
 	std::string body = oss.str();
-	Response::e_status status = Response::OK;
 	Http::e_version version = Http::HTTP_1_1;
 	return (new Response(version, status, headers, body));
 }
 
 Response *Route::notFoundResponse(void) const
 {
-	Response::e_status status = Response::NOT_FOUND;
+	int status = 404;
 	std::string body = "404 Not Found\n";
 	Http::e_version version = Http::HTTP_1_1;
 	HashMap headers = HashMap();
@@ -230,6 +236,26 @@ Response *Route::directoryResponse(Request &req)
 	std::cout << matchedPath << std::endl;
 	if (isRegularFile(matchedPath.c_str()))
 		return (fileResponse(req, matchedPath));
+	if (!index.empty())
+	{
+		for (size_t i = 0; i < index.size(); ++i)
+		{
+			std::cout << "Checking index: " << index[i] << std::endl;
+			std::string indexPath = matchedPath;
+			if (indexPath.empty() || indexPath[indexPath.size() - 1] != '/')
+				indexPath += "/";
+			indexPath += index[i];
+			if (isRegularFile(indexPath.c_str()))
+				return (fileResponse(req, indexPath));
+		}
+		if (cgi && !index.empty())
+		{
+			std::string fallbackPath = directory + "/" + index[0];
+			if (isRegularFile(fallbackPath.c_str()))
+				return (fileResponse(req, fallbackPath));
+		}
+		return (notFoundResponse());
+	}
 	if (directory_listing)
 	{
 		DIR *dir = opendir(matchedPath.c_str());

@@ -80,7 +80,7 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 
 	if (!res)
 	{
-		Response::e_status status = Response::INTERNAL_SERVER_ERROR;
+		int status = 500;
 		std::string body = "500 Internal Server Error\n";
 		Http::e_version version = Http::HTTP_1_1;
 		HashMap headers = HashMap();

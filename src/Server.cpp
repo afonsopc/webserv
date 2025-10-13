@@ -50,7 +50,7 @@ Response *Server::handleRequest(Request &req)
 			std::cout << "Route matched: " << routes[i].getPath() << std::endl;
 			return (routes[i].handleRequest(req));
 		}
-	Response::e_status status = Response::NOT_FOUND;
+	int status = 404;
 	std::string body = "404 Not Found\n";
 	Http::e_version version = Http::HTTP_1_1;
 	HashMap headers = HashMap();
