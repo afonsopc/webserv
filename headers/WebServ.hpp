@@ -8,6 +8,7 @@ char ***envp_singleton(void);
 #include <vector>
 #include <map>
 #include <string>
+#include <cerrno>
 #include "Server.hpp"
 
 class WebServ
@@ -25,6 +26,8 @@ public:
 private:
 	std::vector<Server *> servers;
 	std::map<int, std::string> client_buffers;
+	std::map<int, std::string> pending_writes;
+	std::map<int, size_t> write_offsets;
 };
 
 #endif

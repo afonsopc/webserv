@@ -112,7 +112,8 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 	}
 
 	std::string response_str = res->stringify();
-	write(client_fd, response_str.c_str(), response_str.size());
+	pending_writes[client_fd] = response_str;
+	write_offsets[client_fd] = 0;
 	delete res;
 	return (keep_alive);
 }
@@ -184,17 +185,17 @@ void WebServ::loop(void)
 	}
 	std::cout << "Starting event loop. Press Ctrl+C to stop." << std::endl;
 	int epoll_fd = epoll_create1(0);
-	struct epoll_event event, events[64];
+	struct epoll_event event, events[1024];
 	for (size_t i = 0; i < server_fds.size(); ++i)
 	{
-		event.events = EPOLLIN;
+		event.events = EPOLLIN | EPOLLET;
 		event.data.fd = server_fds[i];
 		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fds[i], &event);
 	}
 	while (!g_shutdown)
 	{
-		int nfds = epoll_wait(epoll_fd, events, 64, 1000);
-		if (nfds == -1 || nfds == 0)
+		int nfds = epoll_wait(epoll_fd, events, 1024, 100);
+		if (nfds <= 0)
 			continue;
 		for (int i = 0; i < nfds; i++)
 		{
@@ -211,49 +212,96 @@ void WebServ::loop(void)
 			if (is_server_socket)
 			{
 				Server *server = getServerFromFd(events[i].data.fd);
-				int client_fd = server->getSocket().acceptConnection();
-				if (client_fd >= 0)
+				while (1)
 				{
+					int client_fd = server->getSocket().acceptConnection();
+					if (client_fd < 0)
+						break;
 					setNonBlocking(client_fd);
-					event.events = EPOLLIN;
+					event.events = EPOLLIN | EPOLLET;
 					event.data.fd = client_fd;
 					epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event);
 				}
 			}
-			else
+			else if (events[i].events & EPOLLIN)
 			{
-				char buffer[4096];
-				ssize_t bytes = recv(events[i].data.fd, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
-				if (bytes > 0)
+				while (1)
 				{
-					buffer[bytes] = '\0';
-					bool keep_alive = handleClientData(events[i].data.fd, buffer, bytes);
-
-					if (!keep_alive)
+					char buffer[4096];
+					ssize_t bytes = recv(events[i].data.fd, buffer, sizeof(buffer) - 1, 0);
+					if (bytes > 0)
 					{
+						buffer[bytes] = '\0';
+						bool keep_alive = handleClientData(events[i].data.fd, buffer, bytes);
+
+						if (pending_writes.count(events[i].data.fd))
+						{
+							event.events = EPOLLIN | EPOLLOUT | EPOLLET;
+							event.data.fd = events[i].data.fd;
+							epoll_ctl(epoll_fd, EPOLL_CTL_MOD, events[i].data.fd, &event);
+						}
+
+						if (!keep_alive)
+						{
+							client_buffers.erase(events[i].data.fd);
+							pending_writes.erase(events[i].data.fd);
+							write_offsets.erase(events[i].data.fd);
+							epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+							close(events[i].data.fd);
+						}
+					}
+					else
+					{
+						if (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+							break;
 						client_buffers.erase(events[i].data.fd);
+						pending_writes.erase(events[i].data.fd);
+						write_offsets.erase(events[i].data.fd);
 						epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
 						close(events[i].data.fd);
+						break;
 					}
 				}
-				else if (bytes <= 0)
+			}
+			else if (events[i].events & EPOLLOUT)
+			{
+				int fd = events[i].data.fd;
+				if (pending_writes.count(fd))
 				{
-					client_buffers.erase(events[i].data.fd);
-					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
-					close(events[i].data.fd);
+					std::string &data = pending_writes[fd];
+					size_t &offset = write_offsets[fd];
+					while (offset < data.size())
+					{
+						ssize_t written = write(fd, data.c_str() + offset, data.size() - offset);
+						if (written > 0)
+							offset += written;
+						else if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+							break;
+						else
+						{
+							client_buffers.erase(fd);
+							pending_writes.erase(fd);
+							write_offsets.erase(fd);
+							epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+							close(fd);
+							break;
+						}
+					}
+					if (offset >= data.size())
+					{
+						pending_writes.erase(fd);
+						write_offsets.erase(fd);
+						event.events = EPOLLIN | EPOLLET;
+						event.data.fd = fd;
+						epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event);
+					}
 				}
 			}
 		}
 	}
 
-	std::cout << "Shutting down servers..." << std::endl;
-
 	client_buffers.clear();
-
 	close(epoll_fd);
-
 	for (size_t i = 0; i < servers.size(); ++i)
 		servers[i]->getSocket().close();
-
-	std::cout << "Server shutdown complete." << std::endl;
 }
