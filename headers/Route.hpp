@@ -5,6 +5,7 @@
 #include "Response.hpp"
 #include "Request.hpp"
 #include <dirent.h>
+#include <map>
 
 class Route
 {
@@ -18,6 +19,7 @@ public:
 	bool getDirectoryListing(void) const;
 	std::vector<std::string> getMethods(void) const;
 	bool getCgi(void) const;
+	std::map<std::string, std::string> getExtensions(void) const;
 
 	Response *handleRequest(Request &req);
 
@@ -38,6 +40,7 @@ private:
 	bool directory_listing;
 	bool cgi;
 	std::vector<std::string> methods;
+	std::map<std::string, std::string> extensions;
 };
 
 #endif

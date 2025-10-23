@@ -15,8 +15,11 @@ Server::Server(const HashMap &config)
 	std::vector<HashMapValue> routesArray = config.get("routes").asArray();
 	for (std::vector<HashMapValue>::const_iterator it = routesArray.begin(); it != routesArray.end(); ++it)
 	{
-		std::cout << "  Loading route #" << (routes.size() + 1) << " for path: " << it->asHashMap().get("path").asString() << std::endl;
-		routes.push_back(Route(it->asHashMap()));
+		HashMap routeConfig = it->asHashMap();
+		if (config.has("extensions") && !routeConfig.has("extensions"))
+			routeConfig.set("extensions", config.get("extensions"));
+		std::cout << "  Loading route #" << (routes.size() + 1) << " for path: " << routeConfig.get("path").asString() << std::endl;
+		routes.push_back(Route(routeConfig));
 	}
 }
 

@@ -10,6 +10,7 @@
 #include <sstream>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <cctype>
 
 std::string Route::getPath(void) const { return path; }
 std::string Route::getRedirect(void) const { return redirect; }
@@ -18,6 +19,7 @@ std::string Route::getDirectory(void) const { return directory; }
 bool Route::getDirectoryListing(void) const { return directory_listing; }
 std::vector<std::string> Route::getMethods(void) const { return methods; }
 bool Route::getCgi(void) const { return cgi; }
+std::map<std::string, std::string> Route::getExtensions(void) const { return extensions; }
 
 void Route::load_config(const HashMap &config)
 {
@@ -41,6 +43,17 @@ void Route::load_config(const HashMap &config)
 		std::vector<HashMapValue> methodsArray = config.get("methods").asArray();
 		for (size_t i = 0; i < methodsArray.size(); ++i)
 			methods.push_back(methodsArray[i].asString());
+	}
+	if (config.has("extensions"))
+	{
+		std::vector<HashMapValue> extArray = config.get("extensions").asArray();
+		for (size_t i = 0; i < extArray.size(); ++i)
+		{
+			HashMap extObj = extArray[i].asHashMap();
+			std::string ext = extObj.get("ext").asString();
+			std::string exec = extObj.get("exec").asString();
+			extensions[ext] = exec;
+		}
 	}
 }
 
@@ -130,7 +143,7 @@ Response *Route::directoryListingResponse(std::string dirPath, std::string reque
 	return (new Response(Http::HTTP_1_1, 418, headers, body.str()));
 }
 
-std::string execCgi(Request &req, const std::string &filePath)
+std::string execCgi(Request &req, const std::string &filePath, const std::string &execPath)
 {
 	int pipefd[2];
 	if (pipe(pipefd) == -1)
@@ -147,9 +160,67 @@ std::string execCgi(Request &req, const std::string &filePath)
 		close(pipefd[0]);
 		dup2(pipefd[1], STDOUT_FILENO);
 		close(pipefd[1]);
+
+		// Build CGI environment variables
+		std::vector<std::string> env_vars;
+
+		// Add REQUEST_METHOD
+		const char *method_names[] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "UNKNOWN"};
+		env_vars.push_back(std::string("REQUEST_METHOD=") + method_names[req.getMethod()]);
+
+		// Parse query string from path
+		std::string path = req.getPath();
+		size_t query_pos = path.find('?');
+		std::string query_string = (query_pos != std::string::npos) ? path.substr(query_pos + 1) : "";
+		env_vars.push_back(std::string("QUERY_STRING=") + query_string);
+
+		// Add CONTENT_LENGTH
+		std::ostringstream oss;
+		oss << req.getBody().size();
+		env_vars.push_back(std::string("CONTENT_LENGTH=") + oss.str());
+
+		// Add CONTENT_TYPE if present
+		HashMap headers = req.getHeaders();
+		if (headers.has("Content-Type"))
+			env_vars.push_back(std::string("CONTENT_TYPE=") + headers.get("Content-Type").asString());
+
+		// Add HTTP_* headers
+		std::vector<std::string> header_keys = headers.keys();
+		for (size_t i = 0; i < header_keys.size(); ++i)
+		{
+			std::string key = header_keys[i];
+			std::string env_key = "HTTP_" + key;
+			for (size_t j = 0; j < env_key.size(); ++j)
+				if (env_key[j] == '-')
+					env_key[j] = '_';
+			for (size_t j = 0; j < env_key.size(); ++j)
+				if (islower(env_key[j]))
+					env_key[j] = toupper(env_key[j]);
+			env_vars.push_back(env_key + "=" + headers.get(key).asString());
+		}
+
+		// Add original environment variables
+		char **orig_env = *envp_singleton();
+		for (int i = 0; orig_env[i] != NULL; ++i)
+			env_vars.push_back(orig_env[i]);
+
+		// Convert to char **
+		char **cgi_envp = new char *[env_vars.size() + 1];
+		for (size_t i = 0; i < env_vars.size(); ++i)
+			cgi_envp[i] = const_cast<char *>(env_vars[i].c_str());
+		cgi_envp[env_vars.size()] = NULL;
+
 		std::string rawRequest = req.getRaw();
-		char *args[] = {const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
-		execve(filePath.c_str(), args, *envp_singleton());
+		if (execPath.empty())
+		{
+			char *args[] = {const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
+			execve(filePath.c_str(), args, cgi_envp);
+		}
+		else
+		{
+			char *args[] = {const_cast<char *>(execPath.c_str()), const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
+			execve(execPath.c_str(), args, cgi_envp);
+		}
 		std::cerr << "CGI Error: Failed to execute " << filePath << std::endl;
 		exit(1);
 	}
@@ -168,29 +239,70 @@ std::string execCgi(Request &req, const std::string &filePath)
 	}
 }
 
+static bool isRegularFile(const char *path)
+{
+	struct stat st;
+
+	if (stat(path, &st) != 0)
+		return (false);
+	return (S_ISREG(st.st_mode));
+}
+
 Response *Route::fileResponse(Request &req, const std::string &filePath)
 {
-	HashMap headers = HashMap();
-	std::ifstream file(filePath.c_str());
-	if (!file.is_open())
+	if (!isRegularFile(filePath.c_str()))
 		return (notFoundResponse());
-	std::ostringstream oss;
-	std::string firstLine;
-	oss << file.rdbuf();
-	std::istringstream iss(oss.str());
-	std::getline(iss, firstLine);
-	int status = 200;
-	if (cgi && firstLine.size() >= 2 && firstLine[0] == '#' && firstLine[1] == '!')
+
+	std::string execPath;
+	bool isCgi = cgi;
+	if (isCgi)
 	{
-		oss.str("");
-		std::string cgiOutput = execCgi(req, filePath);
+		size_t dot = filePath.find_last_of('.');
+		if (dot != std::string::npos)
+		{
+			std::string ext = filePath.substr(dot + 1);
+			if (extensions.count(ext))
+			{
+				execPath = extensions[ext];
+			}
+			else
+			{
+				isCgi = false;
+			}
+		}
+		else
+		{
+			isCgi = false;
+		}
+	}
+
+	if (isCgi)
+	{
+		std::string cgiOutput = execCgi(req, filePath, execPath);
 		std::istringstream iss(cgiOutput);
 		std::string statusLine;
 		std::getline(iss, statusLine);
 		if (!statusLine.empty() && statusLine[statusLine.size() - 1] == '\r')
 			statusLine.erase(statusLine.size() - 1);
-		if (!statusLine.empty())
+		int status = 200;
+		HashMap headers = HashMap();
+		if (!statusLine.empty() && isdigit(statusLine[0]))
 			status = std::atoi(statusLine.c_str());
+		else if (!statusLine.empty())
+		{
+			// parse as header
+			size_t colonPos = statusLine.find(':');
+			if (colonPos != std::string::npos)
+			{
+				std::string key = statusLine.substr(0, colonPos);
+				std::string value = statusLine.substr(colonPos + 1);
+				key.erase(0, key.find_first_not_of(" \t"));
+				key.erase(key.find_last_not_of(" \t") + 1);
+				value.erase(0, value.find_first_not_of(" \t"));
+				value.erase(value.find_last_not_of(" \t") + 1);
+				headers.set(key, value);
+			}
+		}
 		while (true)
 		{
 			std::string header;
@@ -205,23 +317,26 @@ Response *Route::fileResponse(Request &req, const std::string &filePath)
 				headers.set(key, value);
 			}
 		}
+		std::ostringstream oss;
 		oss << iss.rdbuf();
+		std::string body = oss.str();
+		Http::e_version version = Http::HTTP_1_1;
+		return (new Response(version, status, headers, body));
 	}
-	std::string body = oss.str();
-	Http::e_version version = Http::HTTP_1_1;
-	return (new Response(version, status, headers, body));
+	else
+	{
+		// serve as file
+		HashMap headers = HashMap();
+		std::ifstream file(filePath.c_str());
+		std::ostringstream oss;
+		oss << file.rdbuf();
+		std::string body = oss.str();
+		Http::e_version version = Http::HTTP_1_1;
+		return (new Response(version, 200, headers, body));
+	}
 }
 
 Response *Route::notFoundResponse(void) const { return (new Response(Http::HTTP_1_1, 404, HashMap(), "404 Not Found\n")); }
-
-static bool isRegularFile(const char *path)
-{
-	struct stat st;
-
-	if (stat(path, &st) != 0)
-		return (false);
-	return (S_ISREG(st.st_mode));
-}
 
 Response *Route::directoryResponse(Request &req)
 {
