@@ -2,6 +2,7 @@
 #define ROUTE_HPP
 
 #include <string>
+#include <map>
 #include "Response.hpp"
 #include "Request.hpp"
 #include <dirent.h>
@@ -9,7 +10,7 @@
 class Route
 {
 public:
-	Route(const HashMap &config);
+	Route(const HashMap &config, const std::map<std::string, std::string> &extensions);
 	bool matches(const Request &req) const;
 	std::string getPath(void) const;
 	std::string getRedirect(void) const;
@@ -38,6 +39,7 @@ private:
 	bool directory_listing;
 	bool cgi;
 	std::vector<std::string> methods;
+	std::map<std::string, std::string> extensions;
 };
 
 #endif

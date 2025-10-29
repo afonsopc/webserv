@@ -1,4 +1,4 @@
-#!/usr/bin/ruby
+loop {}
 
 cookies = {}
 request = ARGV[0]

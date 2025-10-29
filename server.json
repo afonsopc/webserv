@@ -47,11 +47,52 @@
 		{
 			"port": 1143,
 			"host": "0.0.0.0",
+			"extensions": [
+				{"ext": "py", "exec": "/usr/bin/python"},
+				{"ext": "php", "exec": "/usr/bin/php"},
+				{"ext": "rb", "exec": "/usr/bin/ruby"},
+				{"ext": "c", "exec": "/usr/bin/clang-cgi"},
+				{"ext": "cpp", "exec": "/usr/bin/clang-cgi"},
+				{"ext": "HC", "exec": "/usr/bin/clang-cgi"}
+			],
 			"routes": [
 				{
 					"path": "/*",
 					"directory": "www/cgi",
-					"index": ["proxy"],
+					"index": ["proxy.py"],
+					"cgi": true,
+					"methods": ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"]
+				}
+			]
+		},
+		{
+			"port": 1144,
+			"host": "0.0.0.0",
+			"extensions": [
+				{"ext": "php", "exec": "/usr/bin/php"}
+
+			],
+			"routes": [
+				{
+					"path": "/*",
+					"directory": "www/cgi",
+					"index": ["test.php"],
+					"cgi": true,
+					"methods": ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"]
+				}
+			]
+		},
+		{
+			"port": 1145,
+			"host": "0.0.0.0",
+			"extensions": [
+				{"ext": "rb", "exec": "/usr/bin/ruby"}
+			],
+			"routes": [
+				{
+					"path": "/*",
+					"directory": "www/cgi",
+					"index": ["test.rb"],
 					"cgi": true,
 					"methods": ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"]
 				}

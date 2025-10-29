@@ -61,7 +61,8 @@ void Route::assert_config(void)
 			throw(std::invalid_argument("Route 'methods' contains invalid HTTP method: " + methods[i]));
 }
 
-Route::Route(const HashMap &config)
+Route::Route(const HashMap &config, const std::map<std::string, std::string> &exts)
+	: extensions(exts)
 {
 	load_config(config);
 	assert_config();
@@ -130,7 +131,7 @@ Response *Route::directoryListingResponse(std::string dirPath, std::string reque
 	return (new Response(Http::HTTP_1_1, 418, headers, body.str()));
 }
 
-std::string execCgi(Request &req, const std::string &filePath)
+std::string execCgi(Request &req, const std::string &interpreter, const std::string &scriptPath)
 {
 	int pipefd[2];
 	if (pipe(pipefd) == -1)
@@ -148,9 +149,9 @@ std::string execCgi(Request &req, const std::string &filePath)
 		dup2(pipefd[1], STDOUT_FILENO);
 		close(pipefd[1]);
 		std::string rawRequest = req.getRaw();
-		char *args[] = {const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
-		execve(filePath.c_str(), args, *envp_singleton());
-		std::cerr << "CGI Error: Failed to execute " << filePath << std::endl;
+		char *args[] = {const_cast<char *>(interpreter.c_str()), const_cast<char *>(scriptPath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
+		execve(interpreter.c_str(), args, *envp_singleton());
+		std::cerr << "CGI Error: Failed to execute " << interpreter << " with " << scriptPath << std::endl;
 		exit(1);
 	}
 	else
@@ -163,7 +164,7 @@ std::string execCgi(Request &req, const std::string &filePath)
 			output.write(buffer, bytesRead);
 		close(pipefd[0]);
 		int status;
-		waitpid(pid, &status, 0);
+		waitpid(pid, &status, WNOHANG);
 		return (output.str());
 	}
 }
@@ -171,22 +172,17 @@ std::string execCgi(Request &req, const std::string &filePath)
 Response *Route::fileResponse(Request &req, const std::string &filePath)
 {
 	HashMap headers = HashMap();
-	std::ifstream file(filePath.c_str());
-	if (!file.is_open())
-		return (notFoundResponse());
-	std::ostringstream oss;
-	std::string firstLine;
-	oss << file.rdbuf();
-	std::istringstream iss(oss.str());
-	std::getline(iss, firstLine);
-	int status = 200;
-	if (cgi && firstLine.size() >= 2 && firstLine[0] == '#' && firstLine[1] == '!')
+	size_t dotPos = filePath.find_last_of('.');
+	std::string ext = (dotPos != std::string::npos) ? filePath.substr(dotPos + 1) : "";
+	bool isCgiFile = cgi && extensions.count(ext);
+	if (isCgiFile)
 	{
-		oss.str("");
-		std::string cgiOutput = execCgi(req, filePath);
+		std::string interpreter = extensions.at(ext);
+		std::string cgiOutput = execCgi(req, interpreter, filePath);
 		std::istringstream iss(cgiOutput);
 		std::string statusLine;
 		std::getline(iss, statusLine);
+		int status = 200;
 		if (!statusLine.empty() && statusLine[statusLine.size() - 1] == '\r')
 			statusLine.erase(statusLine.size() - 1);
 		if (!statusLine.empty())
@@ -205,11 +201,20 @@ Response *Route::fileResponse(Request &req, const std::string &filePath)
 				headers.set(key, value);
 			}
 		}
-		oss << iss.rdbuf();
+		std::ostringstream body;
+		body << iss.rdbuf();
+		return (new Response(Http::HTTP_1_1, status, headers, body.str()));
 	}
-	std::string body = oss.str();
-	Http::e_version version = Http::HTTP_1_1;
-	return (new Response(version, status, headers, body));
+	else
+	{
+		std::ifstream file(filePath.c_str());
+		if (!file.is_open())
+			return (notFoundResponse());
+		std::ostringstream oss;
+		oss << file.rdbuf();
+		headers.set("Content-Type", "text/plain");
+		return (new Response(Http::HTTP_1_1, 200, headers, oss.str()));
+	}
 }
 
 Response *Route::notFoundResponse(void) const { return (new Response(Http::HTTP_1_1, 404, HashMap(), "404 Not Found\n")); }
