@@ -9,7 +9,6 @@
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
-#include <sys/wait.h>
 
 std::string Route::getPath(void) const { return path; }
 std::string Route::getRedirect(void) const { return redirect; }
@@ -131,46 +130,9 @@ Response *Route::directoryListingResponse(std::string dirPath, std::string reque
 	return (new Response(Http::HTTP_1_1, 418, headers, body.str()));
 }
 
-std::string execCgi(Request &req, const std::string &interpreter, const std::string &scriptPath)
-{
-	int pipefd[2];
-	if (pipe(pipefd) == -1)
-		return ("CGI Error: Failed to create pipe\n");
-	pid_t pid = fork();
-	if (pid == -1)
-	{
-		close(pipefd[0]);
-		close(pipefd[1]);
-		return ("CGI Error: Failed to fork\n");
-	}
-	if (pid == 0)
-	{
-		close(pipefd[0]);
-		dup2(pipefd[1], STDOUT_FILENO);
-		close(pipefd[1]);
-		std::string rawRequest = req.getRaw();
-		char *args[] = {const_cast<char *>(interpreter.c_str()), const_cast<char *>(scriptPath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
-		execve(interpreter.c_str(), args, *envp_singleton());
-		std::cerr << "CGI Error: Failed to execute " << interpreter << " with " << scriptPath << std::endl;
-		exit(1);
-	}
-	else
-	{
-		close(pipefd[1]);
-		std::ostringstream output;
-		char buffer[4096];
-		ssize_t bytesRead;
-		while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer))) > 0)
-			output.write(buffer, bytesRead);
-		close(pipefd[0]);
-		int status;
-		waitpid(pid, &status, WNOHANG);
-		return (output.str());
-	}
-}
-
 Response *Route::fileResponse(Request &req, const std::string &filePath)
 {
+	(void)req;
 	HashMap headers = HashMap();
 	size_t dotPos = filePath.find_last_of('.');
 	std::string ext = (dotPos != std::string::npos) ? filePath.substr(dotPos + 1) : "";
@@ -178,32 +140,9 @@ Response *Route::fileResponse(Request &req, const std::string &filePath)
 	if (isCgiFile)
 	{
 		std::string interpreter = extensions.at(ext);
-		std::string cgiOutput = execCgi(req, interpreter, filePath);
-		std::istringstream iss(cgiOutput);
-		std::string statusLine;
-		std::getline(iss, statusLine);
-		int status = 200;
-		if (!statusLine.empty() && statusLine[statusLine.size() - 1] == '\r')
-			statusLine.erase(statusLine.size() - 1);
-		if (!statusLine.empty())
-			status = std::atoi(statusLine.c_str());
-		while (true)
-		{
-			std::string header;
-			getline(iss, header);
-			if (header.empty() || header == "\r")
-				break;
-			size_t colonPos = header.find(':');
-			if (colonPos != std::string::npos)
-			{
-				std::string key = header.substr(0, colonPos);
-				std::string value = header.substr(colonPos + 1);
-				headers.set(key, value);
-			}
-		}
-		std::ostringstream body;
-		body << iss.rdbuf();
-		return (new Response(Http::HTTP_1_1, status, headers, body.str()));
+		headers.set("X-CGI-Interpreter", interpreter);
+		headers.set("X-CGI-Script", filePath);
+		return (new Response(Http::HTTP_1_1, -1, headers, ""));
 	}
 	else
 	{

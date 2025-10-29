@@ -10,6 +10,8 @@
 #include <signal.h>
 #include <cstdlib>
 #include <cstring>
+#include <sys/wait.h>
+#include <errno.h>
 #include "Response.hpp"
 #include "Request.hpp"
 
@@ -23,7 +25,7 @@ void signal_handler(int signal)
 	g_shutdown = 1;
 }
 
-WebServ::WebServ(const HashMap &config)
+WebServ::WebServ(const HashMap &config) : epoll_fd(-1)
 {
 	std::vector<HashMapValue> serverArray = config.get("servers").asArray();
 	for (std::vector<HashMapValue>::const_iterator it = serverArray.begin(); it != serverArray.end(); ++it)
@@ -80,6 +82,26 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 
 	if (!res)
 		res = new Response(Http::HTTP_1_1, 500, HashMap(), "500 Internal Server Error\n");
+
+	if (res->getStatus() == -1)
+	{
+		std::string interpreter = res->getHeaders().get("X-CGI-Interpreter").asString();
+		std::string scriptPath = res->getHeaders().get("X-CGI-Script").asString();
+		delete res;
+
+		int pipe_fd = startAsyncCgi(client_fd, req, interpreter, scriptPath);
+		if (pipe_fd < 0)
+		{
+			Response *error_res = new Response(Http::HTTP_1_1, 500, HashMap(), "CGI Error: Failed to start CGI\n");
+			std::string response_str = error_res->stringify();
+			write(client_fd, response_str.c_str(), response_str.size());
+			delete error_res;
+			return (false);
+		}
+
+		return (true);
+	}
+
 	bool keep_alive = false;
 	if (req.getVersion() == Http::HTTP_1_1)
 	{
@@ -160,6 +182,158 @@ bool WebServ::handleClientData(int client_fd, char *buffer, size_t bytes_read)
 	return (keep_alive);
 }
 
+int WebServ::startAsyncCgi(int client_fd, Request &req, const std::string &interpreter, const std::string &scriptPath)
+{
+	int pipefd[2];
+	if (pipe(pipefd) == -1)
+		return (-1);
+
+	pid_t pid = fork();
+	if (pid == -1)
+	{
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return (-1);
+	}
+
+	if (pid == 0)
+	{
+		close(pipefd[0]);
+		dup2(pipefd[1], STDOUT_FILENO);
+		close(pipefd[1]);
+		std::string rawRequest = req.getRaw();
+		char *args[] = {const_cast<char *>(interpreter.c_str()),
+						const_cast<char *>(scriptPath.c_str()),
+						const_cast<char *>(rawRequest.c_str()), NULL};
+		execve(interpreter.c_str(), args, *envp_singleton());
+		std::cerr << "CGI Error: Failed to execute " << interpreter << " with " << scriptPath << std::endl;
+		exit(1);
+	}
+	else
+	{
+		close(pipefd[1]);
+		setNonBlocking(pipefd[0]);
+		pending_cgis.insert(std::make_pair(pipefd[0], PendingCgi(client_fd, pipefd[0], pid, req)));
+
+		if (epoll_fd >= 0)
+		{
+			struct epoll_event event;
+			event.events = EPOLLIN;
+			event.data.fd = pipefd[0];
+			epoll_ctl(epoll_fd, EPOLL_CTL_ADD, pipefd[0], &event);
+		}
+
+		return (pipefd[0]);
+	}
+}
+
+void WebServ::handleCgiData(int pipe_fd)
+{
+	std::map<int, PendingCgi>::iterator it = pending_cgis.find(pipe_fd);
+	if (it == pending_cgis.end())
+		return;
+
+	PendingCgi &cgi = it->second;
+	char buffer[4096];
+	ssize_t bytesRead = read(pipe_fd, buffer, sizeof(buffer));
+
+	if (bytesRead > 0)
+	{
+		cgi.output.append(buffer, bytesRead);
+	}
+	else if (bytesRead == 0 || (bytesRead == -1 && errno != EAGAIN && errno != EWOULDBLOCK))
+	{
+		close(pipe_fd);
+		int status;
+		waitpid(cgi.pid, &status, 0);
+
+		bool timedOut = (time(NULL) - cgi.start_time) > 5;
+
+		if (timedOut)
+		{
+			std::string timeoutMsg = "CGI Error: Execution timed out after 5 seconds\n";
+			Response *res = new Response(Http::HTTP_1_1, 504, HashMap(), timeoutMsg);
+			std::string response_str = res->stringify();
+			write(cgi.client_fd, response_str.c_str(), response_str.size());
+			delete res;
+		}
+		else
+		{
+			HashMap headers = HashMap();
+			std::istringstream iss(cgi.output);
+			std::string statusLine;
+			std::getline(iss, statusLine);
+			int http_status = 200;
+			if (!statusLine.empty() && statusLine[statusLine.size() - 1] == '\r')
+				statusLine.erase(statusLine.size() - 1);
+			if (!statusLine.empty())
+				http_status = std::atoi(statusLine.c_str());
+
+			while (true)
+			{
+				std::string header;
+				std::getline(iss, header);
+				if (header.empty() || header == "\r")
+					break;
+				size_t colonPos = header.find(':');
+				if (colonPos != std::string::npos)
+				{
+					std::string key = header.substr(0, colonPos);
+					std::string value = header.substr(colonPos + 1);
+					headers.set(key, value);
+				}
+			}
+			std::ostringstream body;
+			body << iss.rdbuf();
+
+			Response *res = new Response(Http::HTTP_1_1, http_status, headers, body.str());
+
+			bool keep_alive = false;
+			if (cgi.request.getVersion() == Http::HTTP_1_1)
+			{
+				keep_alive = true;
+				if (cgi.request.getHeaders().get("Connection").isString())
+				{
+					std::string connection = cgi.request.getHeaders().get("Connection").asString();
+					if (connection == "close")
+						keep_alive = false;
+				}
+			}
+			res->setHeader("Connection", keep_alive ? "keep-alive" : "close");
+
+			if (!res->getHeaders().get("Content-Length").isString())
+			{
+				std::ostringstream oss;
+				oss << res->getBody().length();
+				res->setHeader("Content-Length", oss.str());
+			}
+
+			std::string response_str = res->stringify();
+			write(cgi.client_fd, response_str.c_str(), response_str.size());
+			delete res;
+
+			if (!keep_alive)
+				close(cgi.client_fd);
+		}
+
+		pending_cgis.erase(it);
+	}
+	else if ((time(NULL) - cgi.start_time) > 5)
+	{
+		kill(cgi.pid, SIGKILL);
+		close(pipe_fd);
+		waitpid(cgi.pid, NULL, 0);
+
+		std::string timeoutMsg = "CGI Error: Execution timed out after 5 seconds\n";
+		Response *res = new Response(Http::HTTP_1_1, 504, HashMap(), timeoutMsg);
+		std::string response_str = res->stringify();
+		write(cgi.client_fd, response_str.c_str(), response_str.size());
+		delete res;
+
+		pending_cgis.erase(it);
+	}
+}
+
 void WebServ::loop(void)
 {
 	signal(SIGINT, signal_handler);
@@ -183,7 +357,7 @@ void WebServ::loop(void)
 		return;
 	}
 	std::cout << "Starting event loop. Press Ctrl+C to stop." << std::endl;
-	int epoll_fd = epoll_create1(0);
+	epoll_fd = epoll_create1(0);
 	struct epoll_event event, events[64];
 	for (size_t i = 0; i < server_fds.size(); ++i)
 	{
@@ -199,6 +373,8 @@ void WebServ::loop(void)
 		for (int i = 0; i < nfds; i++)
 		{
 			bool is_server_socket = false;
+			bool is_cgi_pipe = false;
+
 			for (size_t j = 0; j < server_fds.size(); ++j)
 			{
 				if (events[i].data.fd == server_fds[j])
@@ -207,6 +383,9 @@ void WebServ::loop(void)
 					break;
 				}
 			}
+
+			if (!is_server_socket && pending_cgis.find(events[i].data.fd) != pending_cgis.end())
+				is_cgi_pipe = true;
 
 			if (is_server_socket)
 			{
@@ -219,6 +398,12 @@ void WebServ::loop(void)
 					event.data.fd = client_fd;
 					epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event);
 				}
+			}
+			else if (is_cgi_pipe)
+			{
+				handleCgiData(events[i].data.fd);
+				if (pending_cgis.find(events[i].data.fd) == pending_cgis.end())
+					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
 			}
 			else
 			{

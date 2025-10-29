@@ -33,6 +33,12 @@ char ***envp_singleton(void)
 	return (&envp);
 }
 
+WebServ **webserv_singleton(void)
+{
+	static WebServ *webserv = NULL;
+	return (&webserv);
+}
+
 int main(int argc, char **argv, char **envp)
 {
 	*argc_singleton() = argc;
@@ -47,6 +53,7 @@ int main(int argc, char **argv, char **envp)
 	{
 		HashMap config(buffer.str());
 		WebServ webserv(config);
+		*webserv_singleton() = &webserv;
 		webserv.loop();
 	}
 	catch (const std::exception &e)
