@@ -25,6 +25,14 @@ public:
 private:
 	std::vector<Server *> servers;
 	std::map<int, std::string> client_buffers;
+	void setupSignals(void);
+	std::vector<int> initializeServers(void);
+	int setupEpoll(const std::vector<int> &server_fds);
+	void runEventLoop(int epoll_fd, const std::vector<int> &server_fds);
+	void handleEpollEvent(int epoll_fd, struct epoll_event event, const std::vector<int> &server_fds);
+	void handleServerSocket(int server_fd, int epoll_fd);
+	void handleClientSocket(int client_fd, int epoll_fd);
+	void cleanup(int epoll_fd);
 };
 
 #endif

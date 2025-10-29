@@ -23,6 +23,10 @@ void signal_handler(int signal)
 	g_shutdown = 1;
 }
 
+static bool determineKeepAlive(const Request &req);
+static void sendResponse(int client_fd, Response *res, bool keep_alive);
+static size_t extractContentLength(const std::string &headers_part);
+
 WebServ::WebServ(const HashMap &config)
 {
 	std::vector<HashMapValue> serverArray = config.get("servers").asArray();
@@ -80,6 +84,14 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 
 	if (!res)
 		res = new Response(Http::HTTP_1_1, 500, HashMap(), "500 Internal Server Error\n");
+	bool keep_alive = determineKeepAlive(req);
+	sendResponse(client_fd, res, keep_alive);
+	delete res;
+	return (keep_alive);
+}
+
+static bool determineKeepAlive(const Request &req)
+{
 	bool keep_alive = false;
 	if (req.getVersion() == Http::HTTP_1_1)
 	{
@@ -101,7 +113,11 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 				keep_alive = true;
 		}
 	}
+	return keep_alive;
+}
 
+static void sendResponse(int client_fd, Response *res, bool keep_alive)
+{
 	res->setHeader("Connection", keep_alive ? "keep-alive" : "close");
 
 	if (!res->getHeaders().get("Content-Length").isString())
@@ -112,9 +128,7 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 	}
 
 	std::string response_str = res->stringify();
-	write(client_fd, response_str.c_str(), response_str.size());
-	delete res;
-	return (keep_alive);
+	send(client_fd, response_str.c_str(), response_str.size(), 0);
 }
 
 bool WebServ::handleClientData(int client_fd, char *buffer, size_t bytes_read)
@@ -128,7 +142,20 @@ bool WebServ::handleClientData(int client_fd, char *buffer, size_t bytes_read)
 		return (true);
 
 	std::string headers_part = request_buffer.substr(0, header_end + 4);
+	size_t content_length = extractContentLength(headers_part);
+	size_t total_expected = header_end + 4 + content_length;
+	if (request_buffer.length() < total_expected)
+		return (true);
+	std::string complete_request = request_buffer.substr(0, total_expected);
+	bool keep_alive = processRequest(client_fd, complete_request);
+	request_buffer.erase(0, total_expected);
+	if (!keep_alive || request_buffer.empty())
+		client_buffers.erase(client_fd);
+	return (keep_alive);
+}
 
+static size_t extractContentLength(const std::string &headers_part)
+{
 	size_t content_length = 0;
 	size_t cl_pos = headers_part.find("Content-Length:");
 	if (cl_pos == std::string::npos)
@@ -145,27 +172,30 @@ bool WebServ::handleClientData(int client_fd, char *buffer, size_t bytes_read)
 			content_length = std::atol(cl_str.c_str());
 		}
 	}
-
-	size_t total_expected = header_end + 4 + content_length;
-	if (request_buffer.length() < total_expected)
-		return (true);
-
-	std::string complete_request = request_buffer.substr(0, total_expected);
-	bool keep_alive = processRequest(client_fd, complete_request);
-
-	request_buffer.erase(0, total_expected);
-
-	if (!keep_alive || request_buffer.empty())
-		client_buffers.erase(client_fd);
-	return (keep_alive);
+	return content_length;
 }
 
 void WebServ::loop(void)
 {
+	setupSignals();
+	std::vector<int> server_fds = initializeServers();
+	if (server_fds.empty())
+		return;
+
+	int epoll_fd = setupEpoll(server_fds);
+	runEventLoop(epoll_fd, server_fds);
+	cleanup(epoll_fd);
+}
+
+void WebServ::setupSignals(void)
+{
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
-
 	std::cout << "\nSignal handlers configured. Ctrl+C will work now." << std::endl;
+}
+
+std::vector<int> WebServ::initializeServers(void)
+{
 	std::vector<int> server_fds;
 	for (size_t i = 0; i < servers.size(); ++i)
 	{
@@ -178,82 +208,100 @@ void WebServ::loop(void)
 		server_fds.push_back(servers[i]->getSocket().getFd());
 	}
 	if (server_fds.empty())
-	{
 		std::cerr << "No servers could be started. Exiting..." << std::endl;
-		return;
-	}
-	std::cout << "Starting event loop. Press Ctrl+C to stop." << std::endl;
+	else
+		std::cout << "Starting event loop. Press Ctrl+C to stop." << std::endl;
+	return server_fds;
+}
+
+int WebServ::setupEpoll(const std::vector<int> &server_fds)
+{
 	int epoll_fd = epoll_create1(0);
-	struct epoll_event event, events[64];
+	struct epoll_event event;
 	for (size_t i = 0; i < server_fds.size(); ++i)
 	{
 		event.events = EPOLLIN;
 		event.data.fd = server_fds[i];
 		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fds[i], &event);
 	}
+	return epoll_fd;
+}
+
+void WebServ::runEventLoop(int epoll_fd, const std::vector<int> &server_fds)
+{
+	struct epoll_event events[64];
 	while (!g_shutdown)
 	{
 		int nfds = epoll_wait(epoll_fd, events, 64, 1000);
 		if (nfds == -1 || nfds == 0)
 			continue;
 		for (int i = 0; i < nfds; i++)
+			handleEpollEvent(epoll_fd, events[i], server_fds);
+	}
+}
+
+void WebServ::handleEpollEvent(int epoll_fd, struct epoll_event event, const std::vector<int> &server_fds)
+{
+	bool is_server_socket = false;
+	for (size_t j = 0; j < server_fds.size(); ++j)
+	{
+		if (event.data.fd == server_fds[j])
 		{
-			bool is_server_socket = false;
-			for (size_t j = 0; j < server_fds.size(); ++j)
-			{
-				if (events[i].data.fd == server_fds[j])
-				{
-					is_server_socket = true;
-					break;
-				}
-			}
-
-			if (is_server_socket)
-			{
-				Server *server = getServerFromFd(events[i].data.fd);
-				int client_fd = server->getSocket().acceptConnection();
-				if (client_fd >= 0)
-				{
-					setNonBlocking(client_fd);
-					event.events = EPOLLIN;
-					event.data.fd = client_fd;
-					epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event);
-				}
-			}
-			else
-			{
-				char buffer[4096];
-				ssize_t bytes = recv(events[i].data.fd, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
-				if (bytes > 0)
-				{
-					buffer[bytes] = '\0';
-					bool keep_alive = handleClientData(events[i].data.fd, buffer, bytes);
-
-					if (!keep_alive)
-					{
-						client_buffers.erase(events[i].data.fd);
-						epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
-						close(events[i].data.fd);
-					}
-				}
-				else if (bytes <= 0)
-				{
-					client_buffers.erase(events[i].data.fd);
-					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
-					close(events[i].data.fd);
-				}
-			}
+			is_server_socket = true;
+			break;
 		}
 	}
 
+	if (is_server_socket)
+		handleServerSocket(event.data.fd, epoll_fd);
+	else
+		handleClientSocket(event.data.fd, epoll_fd);
+}
+
+void WebServ::handleServerSocket(int server_fd, int epoll_fd)
+{
+	Server *server = getServerFromFd(server_fd);
+	int client_fd = server->getSocket().acceptConnection();
+	if (client_fd >= 0)
+	{
+		setNonBlocking(client_fd);
+		struct epoll_event event;
+		event.events = EPOLLIN;
+		event.data.fd = client_fd;
+		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event);
+	}
+}
+
+void WebServ::handleClientSocket(int client_fd, int epoll_fd)
+{
+	char buffer[4096];
+	ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
+	if (bytes > 0)
+	{
+		buffer[bytes] = '\0';
+		bool keep_alive = handleClientData(client_fd, buffer, bytes);
+
+		if (!keep_alive)
+		{
+			client_buffers.erase(client_fd);
+			epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+			close(client_fd);
+		}
+	}
+	else if (bytes <= 0)
+	{
+		client_buffers.erase(client_fd);
+		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+		close(client_fd);
+	}
+}
+
+void WebServ::cleanup(int epoll_fd)
+{
 	std::cout << "Shutting down servers..." << std::endl;
-
 	client_buffers.clear();
-
 	close(epoll_fd);
-
 	for (size_t i = 0; i < servers.size(); ++i)
 		servers[i]->getSocket().close();
-
 	std::cout << "Server shutdown complete." << std::endl;
 }

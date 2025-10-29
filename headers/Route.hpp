@@ -32,6 +32,12 @@ private:
 	Response *directoryListingResponse(std::string dirPath, std::string requestPath, DIR *dir);
 	Response *notFoundResponse(void) const;
 	Response *fileResponse(Request &req, const std::string &filePath);
+	std::string getCgiExecPath(const std::string &filePath) const;
+	Response *serveCgiResponse(Request &req, const std::string &filePath, const std::string &execPath);
+	Response *parseCgiOutput(const std::string &cgiOutput);
+	Response *serveFileResponse(const std::string &filePath);
+	Response *checkIndexFiles(Request &req, const std::string &matchedPath);
+	Response *handleDirectoryListing(const std::string &matchedPath, const std::string &requestPath);
 
 	std::string path;
 	std::string redirect;

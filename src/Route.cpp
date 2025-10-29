@@ -11,6 +11,14 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <cctype>
+#include <sys/epoll.h>
+#include <sys/time.h>
+#include <signal.h>
+#include <ctime>
+
+static void executeCgiChild(Request &req, const std::string &filePath, const std::string &execPath, int pipefd[2]);
+static char **setupCgiEnvironment(Request &req);
+static std::string readCgiOutput(pid_t pid, int pipefd[2]);
 
 std::string Route::getPath(void) const { return path; }
 std::string Route::getRedirect(void) const { return redirect; }
@@ -157,86 +165,171 @@ std::string execCgi(Request &req, const std::string &filePath, const std::string
 	}
 	if (pid == 0)
 	{
-		close(pipefd[0]);
-		dup2(pipefd[1], STDOUT_FILENO);
-		close(pipefd[1]);
-
-		// Build CGI environment variables
-		std::vector<std::string> env_vars;
-
-		// Add REQUEST_METHOD
-		const char *method_names[] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "UNKNOWN"};
-		env_vars.push_back(std::string("REQUEST_METHOD=") + method_names[req.getMethod()]);
-
-		// Parse query string from path
-		std::string path = req.getPath();
-		size_t query_pos = path.find('?');
-		std::string query_string = (query_pos != std::string::npos) ? path.substr(query_pos + 1) : "";
-		env_vars.push_back(std::string("QUERY_STRING=") + query_string);
-
-		// Add CONTENT_LENGTH
-		std::ostringstream oss;
-		oss << req.getBody().size();
-		env_vars.push_back(std::string("CONTENT_LENGTH=") + oss.str());
-
-		// Add CONTENT_TYPE if present
-		HashMap headers = req.getHeaders();
-		if (headers.has("Content-Type"))
-			env_vars.push_back(std::string("CONTENT_TYPE=") + headers.get("Content-Type").asString());
-
-		// Add HTTP_* headers
-		std::vector<std::string> header_keys = headers.keys();
-		for (size_t i = 0; i < header_keys.size(); ++i)
-		{
-			std::string key = header_keys[i];
-			std::string env_key = "HTTP_" + key;
-			for (size_t j = 0; j < env_key.size(); ++j)
-				if (env_key[j] == '-')
-					env_key[j] = '_';
-			for (size_t j = 0; j < env_key.size(); ++j)
-				if (islower(env_key[j]))
-					env_key[j] = toupper(env_key[j]);
-			env_vars.push_back(env_key + "=" + headers.get(key).asString());
-		}
-
-		// Add original environment variables
-		char **orig_env = *envp_singleton();
-		for (int i = 0; orig_env[i] != NULL; ++i)
-			env_vars.push_back(orig_env[i]);
-
-		// Convert to char **
-		char **cgi_envp = new char *[env_vars.size() + 1];
-		for (size_t i = 0; i < env_vars.size(); ++i)
-			cgi_envp[i] = const_cast<char *>(env_vars[i].c_str());
-		cgi_envp[env_vars.size()] = NULL;
-
-		std::string rawRequest = req.getRaw();
-		if (execPath.empty())
-		{
-			char *args[] = {const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
-			execve(filePath.c_str(), args, cgi_envp);
-		}
-		else
-		{
-			char *args[] = {const_cast<char *>(execPath.c_str()), const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
-			execve(execPath.c_str(), args, cgi_envp);
-		}
-		std::cerr << "CGI Error: Failed to execute " << filePath << std::endl;
+		executeCgiChild(req, filePath, execPath, pipefd);
 		exit(1);
 	}
 	else
+		return readCgiOutput(pid, pipefd);
+}
+
+static void executeCgiChild(Request &req, const std::string &filePath, const std::string &execPath, int pipefd[2])
+{
+	close(pipefd[0]);
+	dup2(pipefd[1], STDOUT_FILENO);
+	close(pipefd[1]);
+
+	char **cgi_envp = setupCgiEnvironment(req);
+	std::string rawRequest = req.getRaw();
+
+	if (execPath.empty())
 	{
-		close(pipefd[1]);
-		std::ostringstream output;
-		char buffer[4096];
-		ssize_t bytesRead;
-		while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer))) > 0)
-			output.write(buffer, bytesRead);
-		close(pipefd[0]);
-		int status;
-		waitpid(pid, &status, 0);
-		return (output.str());
+		char *args[] = {const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
+		execve(filePath.c_str(), args, cgi_envp);
 	}
+	else
+	{
+		char *args[] = {const_cast<char *>(execPath.c_str()), const_cast<char *>(filePath.c_str()), const_cast<char *>(rawRequest.c_str()), NULL};
+		execve(execPath.c_str(), args, cgi_envp);
+	}
+	std::cerr << "CGI Error: Failed to execute " << filePath << std::endl;
+	delete[] cgi_envp;
+	exit(1);
+}
+
+static char **setupCgiEnvironment(Request &req)
+{
+	std::vector<std::string> env_vars;
+
+	const char *method_names[] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "UNKNOWN"};
+	env_vars.push_back(std::string("REQUEST_METHOD=") + method_names[req.getMethod()]);
+
+	std::string path = req.getPath();
+	size_t query_pos = path.find('?');
+	std::string query_string = (query_pos != std::string::npos) ? path.substr(query_pos + 1) : "";
+	env_vars.push_back(std::string("QUERY_STRING=") + query_string);
+
+	std::ostringstream oss;
+	oss << req.getBody().size();
+	env_vars.push_back(std::string("CONTENT_LENGTH=") + oss.str());
+
+	HashMap headers = req.getHeaders();
+	if (headers.has("Content-Type"))
+		env_vars.push_back(std::string("CONTENT_TYPE=") + headers.get("Content-Type").asString());
+
+	std::vector<std::string> header_keys = headers.keys();
+	for (size_t i = 0; i < header_keys.size(); ++i)
+	{
+		std::string key = header_keys[i];
+		std::string env_key = "HTTP_" + key;
+		for (size_t j = 0; j < env_key.size(); ++j)
+			if (env_key[j] == '-')
+				env_key[j] = '_';
+		for (size_t j = 0; j < env_key.size(); ++j)
+			if (islower(env_key[j]))
+				env_key[j] = toupper(env_key[j]);
+		env_vars.push_back(env_key + "=" + headers.get(key).asString());
+	}
+
+	char **orig_env = *envp_singleton();
+	for (int i = 0; orig_env[i] != NULL; ++i)
+		env_vars.push_back(orig_env[i]);
+
+	char **cgi_envp = new char *[env_vars.size() + 1];
+	for (size_t i = 0; i < env_vars.size(); ++i)
+		cgi_envp[i] = const_cast<char *>(env_vars[i].c_str());
+	cgi_envp[env_vars.size()] = NULL;
+
+	return cgi_envp;
+}
+
+static std::string readCgiOutput(pid_t pid, int pipefd[2])
+{
+	close(pipefd[1]);
+	std::ostringstream output;
+	char buffer[4096];
+	const int CGI_TIMEOUT_SECONDS = 30;
+	time_t start_time = time(NULL);
+
+	int epoll_fd = epoll_create1(0);
+	if (epoll_fd == -1)
+	{
+		close(pipefd[0]);
+		kill(pid, SIGKILL);
+		waitpid(pid, NULL, 0);
+		return ("CGI Error: Epoll create failed\n");
+	}
+
+	struct epoll_event event;
+	event.events = EPOLLIN;
+	event.data.fd = pipefd[0];
+
+	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, pipefd[0], &event) == -1)
+	{
+		close(epoll_fd);
+		close(pipefd[0]);
+		kill(pid, SIGKILL);
+		waitpid(pid, NULL, 0);
+		return ("CGI Error: Epoll ctl failed\n");
+	}
+
+	struct epoll_event events[1];
+
+	while (true)
+	{
+		int timeout_ms = CGI_TIMEOUT_SECONDS * 1000;
+		int nfds = epoll_wait(epoll_fd, events, 1, timeout_ms);
+
+		if (nfds == -1)
+		{
+			close(epoll_fd);
+			close(pipefd[0]);
+			kill(pid, SIGKILL);
+			waitpid(pid, NULL, 0);
+			return ("CGI Error: Epoll wait failed\n");
+		}
+		else if (nfds == 0)
+		{
+			close(epoll_fd);
+			close(pipefd[0]);
+			kill(pid, SIGKILL);
+			waitpid(pid, NULL, 0);
+			return ("CGI Error: Timeout\n");
+		}
+		else
+		{
+			ssize_t bytesRead = read(pipefd[0], buffer, sizeof(buffer));
+			if (bytesRead > 0)
+				output.write(buffer, bytesRead);
+			else if (bytesRead == 0)
+				break;
+			else
+			{
+				close(epoll_fd);
+				close(pipefd[0]);
+				kill(pid, SIGKILL);
+				waitpid(pid, NULL, 0);
+				return ("CGI Error: Read failed\n");
+			}
+		}
+
+		int status;
+		if (waitpid(pid, &status, WNOHANG) > 0)
+			continue;
+		if (time(NULL) - start_time > CGI_TIMEOUT_SECONDS)
+		{
+			close(epoll_fd);
+			close(pipefd[0]);
+			kill(pid, SIGKILL);
+			waitpid(pid, NULL, 0);
+			return ("CGI Error: Timeout\n");
+		}
+	}
+
+	close(epoll_fd);
+	close(pipefd[0]);
+	int status;
+	waitpid(pid, &status, 0);
+	return (output.str());
 }
 
 static bool isRegularFile(const char *path)
@@ -253,87 +346,87 @@ Response *Route::fileResponse(Request &req, const std::string &filePath)
 	if (!isRegularFile(filePath.c_str()))
 		return (notFoundResponse());
 
-	std::string execPath;
-	bool isCgi = cgi;
-	if (isCgi)
-	{
-		size_t dot = filePath.find_last_of('.');
-		if (dot != std::string::npos)
-		{
-			std::string ext = filePath.substr(dot + 1);
-			if (extensions.count(ext))
-			{
-				execPath = extensions[ext];
-			}
-			else
-			{
-				isCgi = false;
-			}
-		}
-		else
-		{
-			isCgi = false;
-		}
-	}
-
-	if (isCgi)
-	{
-		std::string cgiOutput = execCgi(req, filePath, execPath);
-		std::istringstream iss(cgiOutput);
-		std::string statusLine;
-		std::getline(iss, statusLine);
-		if (!statusLine.empty() && statusLine[statusLine.size() - 1] == '\r')
-			statusLine.erase(statusLine.size() - 1);
-		int status = 200;
-		HashMap headers = HashMap();
-		if (!statusLine.empty() && isdigit(statusLine[0]))
-			status = std::atoi(statusLine.c_str());
-		else if (!statusLine.empty())
-		{
-			// parse as header
-			size_t colonPos = statusLine.find(':');
-			if (colonPos != std::string::npos)
-			{
-				std::string key = statusLine.substr(0, colonPos);
-				std::string value = statusLine.substr(colonPos + 1);
-				key.erase(0, key.find_first_not_of(" \t"));
-				key.erase(key.find_last_not_of(" \t") + 1);
-				value.erase(0, value.find_first_not_of(" \t"));
-				value.erase(value.find_last_not_of(" \t") + 1);
-				headers.set(key, value);
-			}
-		}
-		while (true)
-		{
-			std::string header;
-			getline(iss, header);
-			if (header.empty() || header == "\r")
-				break;
-			size_t colonPos = header.find(':');
-			if (colonPos != std::string::npos)
-			{
-				std::string key = header.substr(0, colonPos);
-				std::string value = header.substr(colonPos + 1);
-				headers.set(key, value);
-			}
-		}
-		std::ostringstream oss;
-		oss << iss.rdbuf();
-		std::string body = oss.str();
-		Http::e_version version = Http::HTTP_1_1;
-		return (new Response(version, status, headers, body));
-	}
+	std::string execPath = getCgiExecPath(filePath);
+	if (!execPath.empty())
+		return serveCgiResponse(req, filePath, execPath);
 	else
+		return serveFileResponse(filePath);
+}
+
+std::string Route::getCgiExecPath(const std::string &filePath) const
+{
+	if (!cgi)
+		return ("");
+	size_t dot = filePath.find_last_of('.');
+	if (dot == std::string::npos)
+		return ("");
+	std::string ext = filePath.substr(dot + 1);
+	if (extensions.count(ext))
+		return extensions.at(ext);
+	return ("");
+}
+
+Response *Route::serveCgiResponse(Request &req, const std::string &filePath, const std::string &execPath)
+{
+	std::string cgiOutput = execCgi(req, filePath, execPath);
+	return parseCgiOutput(cgiOutput);
+}
+
+Response *Route::parseCgiOutput(const std::string &cgiOutput)
+{
+	std::istringstream iss(cgiOutput);
+	std::string statusLine;
+	std::getline(iss, statusLine);
+	if (!statusLine.empty() && statusLine[statusLine.size() - 1] == '\r')
+		statusLine.erase(statusLine.size() - 1);
+	int status = 200;
+	HashMap headers = HashMap();
+	if (!statusLine.empty() && isdigit(statusLine[0]))
+		status = std::atoi(statusLine.c_str());
+	else if (!statusLine.empty())
 	{
-		// serve as file
-		HashMap headers = HashMap();
-		std::ifstream file(filePath.c_str());
-		std::ostringstream oss;
-		oss << file.rdbuf();
-		std::string body = oss.str();
-		Http::e_version version = Http::HTTP_1_1;
-		return (new Response(version, 200, headers, body));
+		size_t colonPos = statusLine.find(':');
+		if (colonPos != std::string::npos)
+		{
+			std::string key = statusLine.substr(0, colonPos);
+			std::string value = statusLine.substr(colonPos + 1);
+			key.erase(0, key.find_first_not_of(" \t"));
+			key.erase(key.find_last_not_of(" \t") + 1);
+			value.erase(0, value.find_first_not_of(" \t"));
+			value.erase(value.find_last_not_of(" \t") + 1);
+			headers.set(key, value);
+		}
 	}
+	while (true)
+	{
+		std::string header;
+		getline(iss, header);
+		if (header.empty() || header == "\r")
+			break;
+		size_t colonPos = header.find(':');
+		if (colonPos != std::string::npos)
+		{
+			std::string key = header.substr(0, colonPos);
+			std::string value = header.substr(colonPos + 1);
+			headers.set(key, value);
+		}
+	}
+	std::ostringstream oss;
+	oss << iss.rdbuf();
+	std::string body = oss.str();
+	Http::e_version version = Http::HTTP_1_1;
+	return (new Response(version, status, headers, body));
+}
+
+Response *Route::serveFileResponse(const std::string &filePath)
+{
+	HashMap headers = HashMap();
+	std::ifstream file(filePath.c_str());
+	std::ostringstream oss;
+	oss << file.rdbuf();
+	std::string body = oss.str();
+	Http::e_version version = Http::HTTP_1_1;
+	return (new Response(version, 200, headers, body));
 }
 
 Response *Route::notFoundResponse(void) const { return (new Response(Http::HTTP_1_1, 404, HashMap(), "404 Not Found\n")); }
@@ -344,34 +437,45 @@ Response *Route::directoryResponse(Request &req)
 	std::cout << matchedPath << std::endl;
 	if (isRegularFile(matchedPath.c_str()))
 		return (fileResponse(req, matchedPath));
-	if (!index.empty())
-	{
-		for (size_t i = 0; i < index.size(); ++i)
-		{
-			std::cout << "Checking index: " << index[i] << std::endl;
-			std::string indexPath = matchedPath;
-			if (indexPath.empty() || indexPath[indexPath.size() - 1] != '/')
-				indexPath += "/";
-			indexPath += index[i];
-			if (isRegularFile(indexPath.c_str()))
-				return (fileResponse(req, indexPath));
-		}
-		if (cgi && !index.empty())
-		{
-			std::string fallbackPath = directory + "/" + index[0];
-			if (isRegularFile(fallbackPath.c_str()))
-				return (fileResponse(req, fallbackPath));
-		}
-		return (notFoundResponse());
-	}
+	Response *indexResponse = checkIndexFiles(req, matchedPath);
+	if (indexResponse)
+		return indexResponse;
 	if (directory_listing)
-	{
-		DIR *dir = opendir(matchedPath.c_str());
-		if (dir)
-			return (directoryListingResponse(matchedPath, req.getPath(), dir));
-		return (notFoundResponse());
-	}
+		return handleDirectoryListing(matchedPath, req.getPath());
 	return (NULL);
+}
+
+Response *Route::checkIndexFiles(Request &req, const std::string &matchedPath)
+{
+	if (index.empty())
+		return (NULL);
+	for (size_t i = 0; i < index.size(); ++i)
+	{
+		std::cout << "Checking index: " << index[i] << std::endl;
+		std::string indexPath = matchedPath;
+		if (indexPath.empty() || indexPath[indexPath.size() - 1] != '/')
+			indexPath += "/";
+		indexPath += index[i];
+		if (isRegularFile(indexPath.c_str()))
+			return (fileResponse(req, indexPath));
+	}
+
+	if (cgi && !index.empty())
+	{
+		std::string fallbackPath = directory + "/" + index[0];
+		if (isRegularFile(fallbackPath.c_str()))
+			return (fileResponse(req, fallbackPath));
+	}
+
+	return (notFoundResponse());
+}
+
+Response *Route::handleDirectoryListing(const std::string &matchedPath, const std::string &requestPath)
+{
+	DIR *dir = opendir(matchedPath.c_str());
+	if (dir)
+		return (directoryListingResponse(matchedPath, requestPath, dir));
+	return (notFoundResponse());
 }
 
 Response *Route::handleRequest(Request &req)
