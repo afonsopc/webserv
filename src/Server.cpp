@@ -2,6 +2,8 @@
 #include "HashMap.hpp"
 #include "Socket.hpp"
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 Server::~Server() { delete (socket); }
 int Server::getPort(void) const { return (socket->getPort()); }
@@ -9,10 +11,56 @@ std::string Server::getHost(void) const { return (socket->getHost()); }
 Socket &Server::getSocket(void) { return (*socket); }
 const Socket &Server::getSocket(void) const { return (*socket); }
 const std::map<std::string, std::string> &Server::getExtensions(void) const { return extensions; }
+size_t Server::getMaxBodySize(void) const { return max_body_size; }
+
+std::string Server::getErrorPage(int status_code) const
+{
+	std::map<int, std::string>::const_iterator it = error_pages.find(status_code);
+	if (it != error_pages.end())
+	{
+		std::ifstream file(it->second.c_str());
+		if (file.is_open())
+		{
+			std::ostringstream oss;
+			oss << file.rdbuf();
+			return oss.str();
+		}
+	}
+
+	std::ostringstream default_path;
+	default_path << "www/errors/" << status_code << ".html";
+	std::ifstream default_file(default_path.str().c_str());
+	if (default_file.is_open())
+	{
+		std::ostringstream oss;
+		oss << default_file.rdbuf();
+		return oss.str();
+	}
+
+	std::ostringstream oss;
+	oss << status_code << " Error\n";
+	return oss.str();
+}
 
 Server::Server(const HashMap &config)
-	: socket(new Socket(config.get("host").asString(), config.get("port").asInt()))
+	: socket(new Socket(config.get("host").asString(), config.get("port").asInt())),
+	  max_body_size(1048576)
 {
+	if (config.has("max_body_size"))
+		max_body_size = static_cast<size_t>(config.get("max_body_size").asInt());
+
+	if (config.has("error_pages"))
+	{
+		std::vector<HashMapValue> errorPagesArray = config.get("error_pages").asArray();
+		for (std::vector<HashMapValue>::const_iterator it = errorPagesArray.begin(); it != errorPagesArray.end(); ++it)
+		{
+			HashMap errorMap = it->asHashMap();
+			int code = errorMap.get("code").asInt();
+			std::string page = errorMap.get("page").asString();
+			error_pages[code] = page;
+		}
+	}
+
 	if (config.has("extensions"))
 	{
 		std::vector<HashMapValue> extensionsArray = config.get("extensions").asArray();
@@ -59,19 +107,29 @@ Response *Server::handleRequest(Request &req)
 	if (req.getVersion() == Http::HTTP_1_1)
 	{
 		if (!req.getHeaders().get("Host").isString())
-			return (new Response(Http::HTTP_1_1, 400, HashMap(), "400 Bad Request: Missing Host header\n"));
-		std::string host_header = req.getHeaders().get("Host").asString();
-		size_t colon_pos = host_header.find(':');
-		std::string request_host = host_header.substr(0, colon_pos);
+		{
+			HashMap headers = HashMap();
+			headers.set("Content-Type", "text/html");
+			return (new Response(Http::HTTP_1_1, 400, headers, getErrorPage(400)));
+		}
 		std::string server_host = getHost();
-		if (request_host != server_host)
-			return (new Response(Http::HTTP_1_1, 400, HashMap(), "400 Bad Request: Host mismatch\n"));
+		if (server_host != "0.0.0.0")
+		{
+			std::string host_header = req.getHeaders().get("Host").asString();
+			size_t colon_pos = host_header.find(':');
+			std::string request_host = host_header.substr(0, colon_pos);
+			if (request_host != server_host)
+			{
+				HashMap headers = HashMap();
+				headers.set("Content-Type", "text/html");
+				return (new Response(Http::HTTP_1_1, 400, headers, getErrorPage(400)));
+			}
+		}
 	}
 	for (size_t i = 0; i < routes.size(); ++i)
 		if (routes[i].matches(req))
-		{
-			std::cout << "Route matched: " << routes[i].getPath() << std::endl;
 			return (routes[i].handleRequest(req));
-		}
-	return (new Response(Http::HTTP_1_1, 404, HashMap(), "404 Not Found\n"));
+	HashMap headers = HashMap();
+	headers.set("Content-Type", "text/html");
+	return (new Response(Http::HTTP_1_1, 404, headers, getErrorPage(404)));
 }

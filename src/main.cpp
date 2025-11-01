@@ -44,9 +44,39 @@ int main(int argc, char **argv, char **envp)
 	*argc_singleton() = argc;
 	*argv_singleton() = argv;
 	*envp_singleton() = envp;
-	if (argc < 2)
-		return (std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl, 1);
-	std::ifstream file(argv[1]);
+
+	std::string config_file;
+	if (argc >= 2)
+		config_file = argv[1];
+	else
+	{
+		const char *defaults[] = {"./server.json", "./webserv.conf", "./config.json", NULL};
+		for (int i = 0; defaults[i] != NULL; ++i)
+		{
+			std::ifstream test(defaults[i]);
+			if (test.good())
+			{
+				config_file = defaults[i];
+				std::cout << "Using default configuration file: " << config_file << std::endl;
+				break;
+			}
+		}
+		if (config_file.empty())
+		{
+			std::cerr << "Usage: " << argv[0] << " [config_file]" << std::endl;
+			std::cerr << "No configuration file specified and no default found." << std::endl;
+			std::cerr << "Tried: ./server.json, ./webserv.conf, ./config.json" << std::endl;
+			return (1);
+		}
+	}
+
+	std::ifstream file(config_file.c_str());
+	if (!file.good())
+	{
+		std::cerr << "Error: Cannot open configuration file: " << config_file << std::endl;
+		return (1);
+	}
+
 	std::ostringstream buffer;
 	buffer << file.rdbuf();
 	try

@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <sys/wait.h>
-#include <errno.h>
 #include "Response.hpp"
 #include "Request.hpp"
 
@@ -241,7 +240,7 @@ void WebServ::handleCgiData(int pipe_fd)
 	{
 		cgi.output.append(buffer, bytesRead);
 	}
-	else if (bytesRead == 0 || (bytesRead == -1 && errno != EAGAIN && errno != EWOULDBLOCK))
+	else if (bytesRead == 0)
 	{
 		close(pipe_fd);
 		int status;

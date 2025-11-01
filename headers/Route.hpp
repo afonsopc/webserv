@@ -16,6 +16,7 @@ public:
 	std::string getRedirect(void) const;
 	std::vector<std::string> getIndex(void) const;
 	std::string getDirectory(void) const;
+	std::string getUploadDir(void) const;
 	bool getDirectoryListing(void) const;
 	std::vector<std::string> getMethods(void) const;
 	bool getCgi(void) const;
@@ -31,11 +32,13 @@ private:
 	Response *directoryListingResponse(std::string dirPath, std::string requestPath, DIR *dir);
 	Response *notFoundResponse(void) const;
 	Response *fileResponse(Request &req, const std::string &filePath);
+	Response *handleFileUpload(Request &req);
 
 	std::string path;
 	std::string redirect;
 	std::vector<std::string> index;
 	std::string directory;
+	std::string upload_dir;
 	bool directory_listing;
 	bool cgi;
 	std::vector<std::string> methods;

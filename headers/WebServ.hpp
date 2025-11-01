@@ -44,6 +44,7 @@ public:
 private:
 	std::vector<Server *> servers;
 	std::map<int, std::string> client_buffers;
+	std::map<int, time_t> client_last_activity;
 	std::map<int, PendingCgi> pending_cgis;
 	int epoll_fd;
 };
