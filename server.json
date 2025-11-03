@@ -49,9 +49,9 @@
 			"port": 1143,
 			"host": "0.0.0.0",
 			"extensions": [
-				{"ext": "py", "exec": "/home/pv/.local/share/mise/installs/python/3.14.0/bin/python3"},
-				{"ext": "php", "exec": "/usr/bin/php"},
-				{"ext": "rb", "exec": "/home/pv/.local/share/mise/installs/ruby/3.4.7/bin/ruby"},
+				{"ext": "py", "exec": "/usr/bin/python3"},
+				{"ext": "php", "exec": "/usr/bin/php-cgi"},
+				{"ext": "rb", "exec": "/usr/bin/ruby"},
 				{"ext": "c", "exec": "/usr/bin/clang-cgi"},
 				{"ext": "cpp", "exec": "/usr/bin/clang-cgi"},
 				{"ext": "HC", "exec": "/usr/bin/clang-cgi"}
@@ -70,7 +70,7 @@
 			"port": 1144,
 			"host": "0.0.0.0",
 			"extensions": [
-				{"ext": "php", "exec": "/usr/bin/php"}
+				{"ext": "php", "exec": "/usr/bin/php-cgi"}
 
 			],
 			"routes": [
@@ -87,7 +87,7 @@
 			"port": 1145,
 			"host": "0.0.0.0",
 			"extensions": [
-				{"ext": "rb", "exec": "/home/pv/.local/share/mise/installs/ruby/3.4.7/bin/ruby"}
+				{"ext": "rb", "exec": "/usr/bin/ruby"}
 			],
 			"routes": [
 				{
