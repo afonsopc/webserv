@@ -124,6 +124,9 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 	}
 
 	res->setHeader("Connection", keep_alive ? "keep-alive" : "close");
+	res->setHeader("Access-Control-Allow-Origin", "*");
+	res->setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD");
+	res->setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
 	if (!res->getHeaders().get("Content-Length").isString())
 	{
@@ -299,6 +302,9 @@ void WebServ::handleCgiData(int pipe_fd)
 				}
 			}
 			res->setHeader("Connection", keep_alive ? "keep-alive" : "close");
+			res->setHeader("Access-Control-Allow-Origin", "*");
+			res->setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD");
+			res->setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
 			if (!res->getHeaders().get("Content-Length").isString())
 			{

@@ -113,7 +113,7 @@ Response *Server::handleRequest(Request &req)
 			return (new Response(Http::HTTP_1_1, 400, headers, getErrorPage(400)));
 		}
 		std::string server_host = getHost();
-		if (server_host != "0.0.0.0")
+		if (server_host != "0.0.0.0" && server_host != "localhost")
 		{
 			std::string host_header = req.getHeaders().get("Host").asString();
 			size_t colon_pos = host_header.find(':');

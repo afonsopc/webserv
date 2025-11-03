@@ -352,12 +352,12 @@
         </div>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('overview')">📊 Overview</button>
-            <button class="tab" onclick="switchTab('http')">🌐 HTTP Requests</button>
-            <button class="tab" onclick="switchTab('upload')">📤 File Upload</button>
-            <button class="tab" onclick="switchTab('cgi')">⚙️ CGI Tests</button>
-            <button class="tab" onclick="switchTab('methods')">🔧 HTTP Methods</button>
-            <button class="tab" onclick="switchTab('errors')">❌ Error Pages</button>
+            <button class="tab active" onclick="switchTab('overview', this)">📊 Overview</button>
+            <button class="tab" onclick="switchTab('http', this)">🌐 HTTP Requests</button>
+            <button class="tab" onclick="switchTab('upload', this)">📤 File Upload</button>
+            <button class="tab" onclick="switchTab('cgi', this)">⚙️ CGI Tests</button>
+            <button class="tab" onclick="switchTab('methods', this)">🔧 HTTP Methods</button>
+            <button class="tab" onclick="switchTab('errors', this)">❌ Error Pages</button>
         </div>
 
         <div class="content">
@@ -450,12 +450,12 @@
                 <div class="form-group">
                     <label>HTTP Method</label>
                     <div class="button-group">
-                        <button class="btn-secondary method-btn selected" onclick="selectMethod('GET')">GET</button>
-                        <button class="btn-secondary method-btn" onclick="selectMethod('POST')">POST</button>
-                        <button class="btn-secondary method-btn" onclick="selectMethod('PUT')">PUT</button>
-                        <button class="btn-secondary method-btn" onclick="selectMethod('DELETE')">DELETE</button>
-                        <button class="btn-secondary method-btn" onclick="selectMethod('PATCH')">PATCH</button>
-                        <button class="btn-secondary method-btn" onclick="selectMethod('OPTIONS')">OPTIONS</button>
+                        <button class="btn-secondary method-btn selected" onclick="selectMethod('GET', this)">GET</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('POST', this)">POST</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('PUT', this)">PUT</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('DELETE', this)">DELETE</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('PATCH', this)">PATCH</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('OPTIONS', this)">OPTIONS</button>
                     </div>
                 </div>
 
@@ -740,7 +740,7 @@
             return url.toString();
         }
 
-        function switchTab(tabName) {
+        function switchTab(tabName, element) {
             document.querySelectorAll('.test-section').forEach(section => {
                 section.classList.remove('active');
             });
@@ -751,15 +751,19 @@
             
             document.getElementById(tabName).classList.add('active');
             
-            event.target.classList.add('active');
+            if (element) {
+                element.classList.add('active');
+            }
         }
 
-        function selectMethod(method) {
+        function selectMethod(method, element) {
             currentMethod = method;
             document.querySelectorAll('.method-btn').forEach(btn => {
                 btn.classList.remove('selected');
             });
-            event.target.classList.add('selected');
+            if (element) {
+                element.classList.add('selected');
+            }
             
             const bodyGroup = document.getElementById('body-group');
             if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {

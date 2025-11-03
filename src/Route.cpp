@@ -131,7 +131,7 @@ Response *Route::directoryListingResponse(std::string dirPath, std::string reque
 	closedir(dir);
 	HashMap headers = HashMap();
 	headers.set("Content-Type", "text/html");
-	return (new Response(Http::HTTP_1_1, 418, headers, body.str()));
+	return (new Response(Http::HTTP_1_1, 200, headers, body.str()));
 }
 
 Response *Route::fileResponse(Request &req, const std::string &filePath)
