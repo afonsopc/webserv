@@ -12,6 +12,13 @@
 					]
 				},
 				{
+					"path": "/upload",
+					"upload_dir": "uploads",
+					"methods": [
+						"POST"
+					]
+				},
+				{
 					"path": "/pagman",
 					"index": [
 						"index.html", "index.htm"
@@ -32,6 +39,7 @@
 					"path": "/*",
 					"directory": "www",
 					"directory_listing": true,
+					"upload_dir": "uploads",
 					"methods": [
 						"GET",
 						"POST"
