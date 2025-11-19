@@ -316,9 +316,6 @@ void WebServ::handleCgiData(int pipe_fd)
 			std::string response_str = res->stringify();
 			queueWrite(cgi.client_fd, response_str, keep_alive);
 			delete res;
-
-			if (!keep_alive)
-				close(cgi.client_fd);
 		}
 
 		pending_cgis.erase(it);
@@ -487,7 +484,7 @@ void WebServ::loop(void)
 						buffer[bytes] = '\0';
 						bool keep_alive = handleClientData(events[i].data.fd, buffer, bytes);
 
-						if (!keep_alive)
+						if (!keep_alive && pending_writes.find(events[i].data.fd) == pending_writes.end())
 						{
 							client_buffers.erase(events[i].data.fd);
 							epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
