@@ -27,4 +27,4 @@ echo "<h2>Uploaded Files</h2>";
 echo "<pre>";
 print_r($_FILES);
 echo "</pre>";
-?>
+

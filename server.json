@@ -95,13 +95,14 @@
 			"port": 1145,
 			"host": "0.0.0.0",
 			"extensions": [
-				{"ext": "rb", "exec": "/usr/bin/ruby"}
+				{"ext": "rb", "exec": "/usr/bin/ruby"},
+				{"ext": "py", "exec": "/usr/bin/python3"}
 			],
 			"routes": [
 				{
 					"path": "/*",
 					"directory": "www/cgi",
-					"index": ["test.rb"],
+					"index": ["script.py"],
 					"cgi": true,
 					"methods": ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"]
 				}

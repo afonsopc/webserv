@@ -831,16 +831,17 @@
             const port = document.getElementById('upload-port').value;
             const url = port ? buildUrl(urlPath, port) : buildUrl(urlPath);
             const fileInput = document.getElementById('upload-file');
-            const fieldName = document.getElementById('upload-field').value;
+            const fieldName = document.getElementById('upload-field').value || 'file';
             
-            if (!fileInput.files.length) {
+            if (!fileInput || !fileInput.files || !fileInput.files.length) {
                 alert('Please select a file to upload');
                 return;
             }
             
             const formData = new FormData();
-            for (let file of fileInput.files) {
-                formData.append(fieldName, file);
+            for (let i = 0; i < fileInput.files.length; i++) {
+                const file = fileInput.files[i];
+                formData.append(fieldName, file, file.name);
             }
             
             showLoading('upload');
@@ -855,9 +856,9 @@
                 showResponse('upload', response.status, responseText);
             } catch (error) {
                 showResponse('upload', 0, `Error: ${error.message}`);
+            } finally {
+                hideLoading('upload');
             }
-            
-            hideLoading('upload');
         }
 
         function createTestFile() {
