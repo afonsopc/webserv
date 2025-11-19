@@ -366,6 +366,40 @@ Response *Route::handleRequest(Request &req)
 	if (req.getMethod() == Request::POST && !upload_dir.empty())
 		return (handleFileUpload(req));
 
+	if (req.getMethod() == Request::DELETE && !directory.empty())
+	{
+		std::string matchedPath = getMatchedPath(req);
+		std::string filepath = directory + "/" + matchedPath;
+
+		if (matchedPath.empty() || matchedPath.find("..") != std::string::npos)
+		{
+			HashMap headers = HashMap();
+			headers.set("Content-Type", "text/html");
+			return (new Response(Http::HTTP_1_1, 403, headers, ErrorPages::getDefaultErrorPage(403)));
+		}
+
+		if (!isRegularFile(filepath.c_str()))
+		{
+			HashMap headers = HashMap();
+			headers.set("Content-Type", "text/html");
+			return (new Response(Http::HTTP_1_1, 404, headers, ErrorPages::getDefaultErrorPage(404)));
+		}
+
+		if (remove(filepath.c_str()) == 0)
+		{
+			HashMap headers = HashMap();
+			headers.set("Content-Type", "text/plain");
+			std::string body = "File deleted successfully: " + filepath + "\n";
+			return (new Response(Http::HTTP_1_1, 200, headers, body));
+		}
+		else
+		{
+			HashMap headers = HashMap();
+			headers.set("Content-Type", "text/html");
+			return (new Response(Http::HTTP_1_1, 500, headers, ErrorPages::getDefaultErrorPage(500)));
+		}
+	}
+
 	if (!redirect.empty())
 		return (redirectResponse());
 	if (!directory.empty())

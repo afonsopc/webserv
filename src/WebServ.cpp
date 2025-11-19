@@ -170,6 +170,24 @@ bool WebServ::handleClientData(int client_fd, char *buffer, size_t bytes_read)
 		}
 	}
 
+	Server *server = getServerFromClientFd(client_fd);
+	if (content_length > server->getMaxBodySize())
+	{
+		Response *error_res = new Response(Http::HTTP_1_1, 413, HashMap(), server->getErrorPage(413));
+		if (!error_res->getHeaders().get("Content-Length").isString())
+		{
+			std::ostringstream oss;
+			oss << error_res->getBody().length();
+			error_res->setHeader("Content-Length", oss.str());
+		}
+		error_res->setHeader("Connection", "close");
+		std::string response_str = error_res->stringify();
+		queueWrite(client_fd, response_str, false);
+		delete error_res;
+		client_buffers.erase(client_fd);
+		return (false);
+	}
+
 	size_t total_expected = header_end + 4 + content_length;
 	if (request_buffer.length() < total_expected)
 		return (true);

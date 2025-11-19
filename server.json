@@ -42,7 +42,8 @@
 					"upload_dir": "uploads",
 					"methods": [
 						"GET",
-						"POST"
+						"POST",
+						"DELETE"
 					]
 				}
 			],
