@@ -2,7 +2,8 @@
 	"servers": [
 		{
 			"port": 8080,
-			"host": "0.0.0.0",
+			"host": "localhost",
+			"max_body_size": 52428800,
 			"routes": [
 				{
 					"path": "/omelhorsite/*",
@@ -56,7 +57,7 @@
 		},
 		{
 			"port": 1143,
-			"host": "0.0.0.0",
+			"host": "localhost",
 			"extensions": [
 				{"ext": "py", "exec": "/usr/bin/python3"},
 				{"ext": "php", "exec": "/usr/bin/php-cgi"},
@@ -77,7 +78,7 @@
 		},
 		{
 			"port": 1144,
-			"host": "0.0.0.0",
+			"host": "localhost",
 			"extensions": [
 				{"ext": "php", "exec": "/usr/bin/php-cgi"}
 
@@ -94,7 +95,7 @@
 		},
 		{
 			"port": 1145,
-			"host": "0.0.0.0",
+			"host": "localhost",
 			"extensions": [
 				{"ext": "rb", "exec": "/usr/bin/ruby"},
 				{"ext": "py", "exec": "/usr/bin/python3"}

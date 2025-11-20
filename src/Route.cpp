@@ -194,6 +194,45 @@ Response *Route::notFoundResponse(void) const
 	return (new Response(Http::HTTP_1_1, 404, headers, ErrorPages::getDefaultErrorPage(404)));
 }
 
+static void parseMultipartData(const std::string &body, const std::string &content_type,
+							   std::string &filename, std::string &file_content)
+{
+	if (content_type.find("multipart/form-data") == std::string::npos)
+	{
+		file_content = body;
+		return;
+	}
+
+	size_t pos = body.find("Content-Disposition:");
+	if (pos != std::string::npos)
+	{
+		size_t filename_pos = body.find("filename=", pos);
+		if (filename_pos != std::string::npos)
+		{
+			filename_pos += 9;
+			if (filename_pos < body.length() && body[filename_pos] == '"')
+				filename_pos++;
+
+			size_t end_pos = body.find_first_of("\"\r\n", filename_pos);
+			if (end_pos != std::string::npos && end_pos > filename_pos)
+				filename = body.substr(filename_pos, end_pos - filename_pos);
+		}
+	}
+
+	size_t content_start = body.find("\r\n\r\n");
+	if (content_start != std::string::npos)
+	{
+		content_start += 4;
+		size_t content_end = body.find("\r\n--", content_start);
+		if (content_end != std::string::npos)
+			file_content = body.substr(content_start, content_end - content_start);
+		else
+			file_content = body.substr(content_start);
+	}
+	else
+		file_content = body;
+}
+
 Response *Route::handleFileUpload(Request &req)
 {
 	if (upload_dir.empty())
@@ -220,6 +259,9 @@ Response *Route::handleFileUpload(Request &req)
 	oss << time(NULL);
 	filename += oss.str();
 
+	std::string file_content;
+	parseMultipartData(body, content_type, filename, file_content);
+
 	std::string path_str = req.getPath();
 	size_t last_slash = path_str.find_last_of('/');
 	if (last_slash != std::string::npos && last_slash + 1 < path_str.length())
@@ -234,7 +276,7 @@ Response *Route::handleFileUpload(Request &req)
 		return (new Response(Http::HTTP_1_1, 500, headers, ErrorPages::getDefaultErrorPage(500)));
 	}
 
-	outfile.write(body.c_str(), body.length());
+	outfile.write(file_content.c_str(), file_content.length());
 	outfile.close();
 
 	HashMap headers = HashMap();

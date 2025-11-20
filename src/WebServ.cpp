@@ -20,13 +20,15 @@ void signal_handler(int signal)
 {
 	if (signal != SIGINT && signal != SIGTERM)
 		return;
-	std::cout << "\nReceived signal " << signal << ". Shutting down gracefully..." << std::endl;
+	std::cout << "\nShutting down webserv..." << std::endl;
 	g_shutdown = 1;
 }
 
 WebServ::WebServ(const HashMap &config) : epoll_fd(-1)
 {
 	std::vector<HashMapValue> serverArray = config.get("servers").asArray();
+	std::cout << "\nLoading routes:\n"
+			  << std::endl;
 	for (std::vector<HashMapValue>::const_iterator it = serverArray.begin(); it != serverArray.end(); ++it)
 	{
 		std::cout << "Loading server #" << (servers.size() + 1) << " for: " << it->asHashMap().get("host").asString() << ":" << it->asHashMap().get("port").asInt() << std::endl;
@@ -134,6 +136,9 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 		oss << res->getBody().length();
 		res->setHeader("Content-Length", oss.str());
 	}
+
+	const char *method_names[] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "UNKNOWN"};
+	std::cout << method_names[req.getMethod()] << " - " << res->getStatus() << " | Path: " << req.getPath() << std::endl;
 
 	std::string response_str = res->stringify();
 	queueWrite(client_fd, response_str, keep_alive);
@@ -422,8 +427,9 @@ void WebServ::loop(void)
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	std::cout << "\nSignal handlers configured. Ctrl+C will work now." << std::endl;
 	std::vector<int> server_fds;
+	std::cout << "\nServers loaded:\n"
+			  << std::endl;
 	for (size_t i = 0; i < servers.size(); ++i)
 	{
 		std::cout << "Starting server on http://" << servers[i]->getHost() << ":" << servers[i]->getPort() << std::endl;
@@ -434,12 +440,12 @@ void WebServ::loop(void)
 		}
 		server_fds.push_back(servers[i]->getSocket().getFd());
 	}
+	std::cout << std::endl;
 	if (server_fds.empty())
 	{
 		std::cerr << "No servers could be started. Exiting..." << std::endl;
 		return;
 	}
-	std::cout << "Starting event loop. Press Ctrl+C to stop." << std::endl;
 	epoll_fd = epoll_create1(0);
 	struct epoll_event event, events[64];
 	for (size_t i = 0; i < server_fds.size(); ++i)
