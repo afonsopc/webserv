@@ -16,7 +16,7 @@ public:
 	Response(const e_version &, int status, const HashMap &headers, const std::string &body);
 	int getStatus() const;
 	void setStatus(int);
-	std::string stringify() const;
+	std::string stringify(const std::string &method = "", const std::string &path = "") const;
 };
 
 #endif

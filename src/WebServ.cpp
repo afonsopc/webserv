@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <sys/wait.h>
-#include <errno.h>
 #include "Response.hpp"
 #include "Request.hpp"
 
@@ -21,13 +20,15 @@ void signal_handler(int signal)
 {
 	if (signal != SIGINT && signal != SIGTERM)
 		return;
-	std::cout << "\nReceived signal " << signal << ". Shutting down gracefully..." << std::endl;
+	std::cout << "\nShutting down webserv..." << std::endl;
 	g_shutdown = 1;
 }
 
 WebServ::WebServ(const HashMap &config) : epoll_fd(-1)
 {
 	std::vector<HashMapValue> serverArray = config.get("servers").asArray();
+	std::cout << "\nLoading routes:\n"
+			  << std::endl;
 	for (std::vector<HashMapValue>::const_iterator it = serverArray.begin(); it != serverArray.end(); ++it)
 	{
 		std::cout << "Loading server #" << (servers.size() + 1) << " for: " << it->asHashMap().get("host").asString() << ":" << it->asHashMap().get("port").asInt() << std::endl;
@@ -94,7 +95,7 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 		{
 			Response *error_res = new Response(Http::HTTP_1_1, 500, HashMap(), "CGI Error: Failed to start CGI\n");
 			std::string response_str = error_res->stringify();
-			write(client_fd, response_str.c_str(), response_str.size());
+			queueWrite(client_fd, response_str, false);
 			delete error_res;
 			return (false);
 		}
@@ -125,6 +126,9 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 	}
 
 	res->setHeader("Connection", keep_alive ? "keep-alive" : "close");
+	res->setHeader("Access-Control-Allow-Origin", "*");
+	res->setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD");
+	res->setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
 	if (!res->getHeaders().get("Content-Length").isString())
 	{
@@ -133,8 +137,10 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 		res->setHeader("Content-Length", oss.str());
 	}
 
-	std::string response_str = res->stringify();
-	write(client_fd, response_str.c_str(), response_str.size());
+	const char *method_names[] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "UNKNOWN"};
+
+	std::string response_str = res->stringify(method_names[req.getMethod()], req.getPath());
+	queueWrite(client_fd, response_str, keep_alive);
 	delete res;
 	return (keep_alive);
 }
@@ -166,6 +172,24 @@ bool WebServ::handleClientData(int client_fd, char *buffer, size_t bytes_read)
 			cl_str.erase(cl_str.find_last_not_of(" \t") + 1);
 			content_length = std::atol(cl_str.c_str());
 		}
+	}
+
+	Server *server = getServerFromClientFd(client_fd);
+	if (content_length > server->getMaxBodySize())
+	{
+		Response *error_res = new Response(Http::HTTP_1_1, 413, HashMap(), server->getErrorPage(413));
+		if (!error_res->getHeaders().get("Content-Length").isString())
+		{
+			std::ostringstream oss;
+			oss << error_res->getBody().length();
+			error_res->setHeader("Content-Length", oss.str());
+		}
+		error_res->setHeader("Connection", "close");
+		std::string response_str = error_res->stringify();
+		queueWrite(client_fd, response_str, false);
+		delete error_res;
+		client_buffers.erase(client_fd);
+		return (false);
 	}
 
 	size_t total_expected = header_end + 4 + content_length;
@@ -241,7 +265,7 @@ void WebServ::handleCgiData(int pipe_fd)
 	{
 		cgi.output.append(buffer, bytesRead);
 	}
-	else if (bytesRead == 0 || (bytesRead == -1 && errno != EAGAIN && errno != EWOULDBLOCK))
+	else if (bytesRead == 0)
 	{
 		close(pipe_fd);
 		int status;
@@ -254,7 +278,7 @@ void WebServ::handleCgiData(int pipe_fd)
 			std::string timeoutMsg = "CGI Error: Execution timed out after 5 seconds\n";
 			Response *res = new Response(Http::HTTP_1_1, 504, HashMap(), timeoutMsg);
 			std::string response_str = res->stringify();
-			write(cgi.client_fd, response_str.c_str(), response_str.size());
+			queueWrite(cgi.client_fd, response_str, false);
 			delete res;
 		}
 		else
@@ -300,6 +324,9 @@ void WebServ::handleCgiData(int pipe_fd)
 				}
 			}
 			res->setHeader("Connection", keep_alive ? "keep-alive" : "close");
+			res->setHeader("Access-Control-Allow-Origin", "*");
+			res->setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD");
+			res->setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
 			if (!res->getHeaders().get("Content-Length").isString())
 			{
@@ -309,11 +336,8 @@ void WebServ::handleCgiData(int pipe_fd)
 			}
 
 			std::string response_str = res->stringify();
-			write(cgi.client_fd, response_str.c_str(), response_str.size());
+			queueWrite(cgi.client_fd, response_str, keep_alive);
 			delete res;
-
-			if (!keep_alive)
-				close(cgi.client_fd);
 		}
 
 		pending_cgis.erase(it);
@@ -327,10 +351,73 @@ void WebServ::handleCgiData(int pipe_fd)
 		std::string timeoutMsg = "CGI Error: Execution timed out after 5 seconds\n";
 		Response *res = new Response(Http::HTTP_1_1, 504, HashMap(), timeoutMsg);
 		std::string response_str = res->stringify();
-		write(cgi.client_fd, response_str.c_str(), response_str.size());
+		queueWrite(cgi.client_fd, response_str, false);
 		delete res;
 
 		pending_cgis.erase(it);
+	}
+}
+
+void WebServ::queueWrite(int client_fd, const std::string &data, bool keep_alive)
+{
+	std::map<int, PendingWrite>::iterator it = pending_writes.find(client_fd);
+	if (it != pending_writes.end())
+	{
+		it->second.data.append(data);
+		return;
+	}
+
+	pending_writes.insert(std::make_pair(client_fd, PendingWrite(data, keep_alive)));
+
+	if (epoll_fd >= 0)
+	{
+		struct epoll_event event;
+		event.events = EPOLLIN | EPOLLOUT;
+		event.data.fd = client_fd;
+		epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &event);
+	}
+}
+
+void WebServ::handleWriteReady(int client_fd)
+{
+	std::map<int, PendingWrite>::iterator it = pending_writes.find(client_fd);
+	if (it == pending_writes.end())
+		return;
+
+	PendingWrite &pw = it->second;
+	size_t remaining = pw.data.size() - pw.bytes_sent;
+
+	ssize_t bytes_written = write(client_fd, pw.data.c_str() + pw.bytes_sent, remaining);
+
+	if (bytes_written <= 0)
+	{
+		pending_writes.erase(it);
+		client_buffers.erase(client_fd);
+		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+		close(client_fd);
+		return;
+	}
+
+	pw.bytes_sent += bytes_written;
+
+	if (pw.bytes_sent >= pw.data.size())
+	{
+		bool keep_alive = pw.keep_alive;
+		pending_writes.erase(it);
+
+		if (keep_alive)
+		{
+			struct epoll_event event;
+			event.events = EPOLLIN;
+			event.data.fd = client_fd;
+			epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &event);
+		}
+		else
+		{
+			client_buffers.erase(client_fd);
+			epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+			close(client_fd);
+		}
 	}
 }
 
@@ -339,7 +426,6 @@ void WebServ::loop(void)
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	std::cout << "\nSignal handlers configured. Ctrl+C will work now." << std::endl;
 	std::vector<int> server_fds;
 	for (size_t i = 0; i < servers.size(); ++i)
 	{
@@ -351,12 +437,13 @@ void WebServ::loop(void)
 		}
 		server_fds.push_back(servers[i]->getSocket().getFd());
 	}
+	std::cout << "\nLogs:\n"
+			  << std::endl;
 	if (server_fds.empty())
 	{
 		std::cerr << "No servers could be started. Exiting..." << std::endl;
 		return;
 	}
-	std::cout << "Starting event loop. Press Ctrl+C to stop." << std::endl;
 	epoll_fd = epoll_create1(0);
 	struct epoll_event event, events[64];
 	for (size_t i = 0; i < server_fds.size(); ++i)
@@ -407,25 +494,32 @@ void WebServ::loop(void)
 			}
 			else
 			{
-				char buffer[4096];
-				ssize_t bytes = recv(events[i].data.fd, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
-				if (bytes > 0)
-				{
-					buffer[bytes] = '\0';
-					bool keep_alive = handleClientData(events[i].data.fd, buffer, bytes);
+				if (events[i].events & EPOLLOUT)
+					handleWriteReady(events[i].data.fd);
 
-					if (!keep_alive)
+				if (events[i].events & EPOLLIN)
+				{
+					char buffer[4096];
+					ssize_t bytes = recv(events[i].data.fd, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
+					if (bytes > 0)
+					{
+						buffer[bytes] = '\0';
+						bool keep_alive = handleClientData(events[i].data.fd, buffer, bytes);
+
+						if (!keep_alive && pending_writes.find(events[i].data.fd) == pending_writes.end())
+						{
+							client_buffers.erase(events[i].data.fd);
+							epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+							close(events[i].data.fd);
+						}
+					}
+					else if (bytes <= 0)
 					{
 						client_buffers.erase(events[i].data.fd);
+						pending_writes.erase(events[i].data.fd);
 						epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
 						close(events[i].data.fd);
 					}
-				}
-				else if (bytes <= 0)
-				{
-					client_buffers.erase(events[i].data.fd);
-					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
-					close(events[i].data.fd);
 				}
 			}
 		}

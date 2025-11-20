@@ -27,6 +27,16 @@ struct PendingCgi
 		: client_fd(cf), pipe_fd(pf), pid(p), start_time(time(NULL)), request(r) {}
 };
 
+struct PendingWrite
+{
+	std::string data;
+	size_t bytes_sent;
+	bool keep_alive;
+
+	PendingWrite(const std::string &d, bool ka)
+		: data(d), bytes_sent(0), keep_alive(ka) {}
+};
+
 class WebServ
 {
 public:
@@ -40,11 +50,15 @@ public:
 	bool setNonBlocking(int fd);
 	void handleCgiData(int pipe_fd);
 	int startAsyncCgi(int client_fd, Request &req, const std::string &interpreter, const std::string &scriptPath);
+	void queueWrite(int client_fd, const std::string &data, bool keep_alive);
+	void handleWriteReady(int client_fd);
 
 private:
 	std::vector<Server *> servers;
 	std::map<int, std::string> client_buffers;
+	std::map<int, time_t> client_last_activity;
 	std::map<int, PendingCgi> pending_cgis;
+	std::map<int, PendingWrite> pending_writes;
 	int epoll_fd;
 };
 

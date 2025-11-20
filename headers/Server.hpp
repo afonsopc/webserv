@@ -21,6 +21,8 @@ public:
 	Socket &getSocket(void);
 	const Socket &getSocket(void) const;
 	const std::map<std::string, std::string> &getExtensions(void) const;
+	size_t getMaxBodySize(void) const;
+	std::string getErrorPage(int status_code) const;
 
 	bool initialize(void);
 	Response *handleRequest(Request &req);
@@ -29,6 +31,8 @@ private:
 	Socket *socket;
 	std::vector<Route> routes;
 	std::map<std::string, std::string> extensions;
+	std::map<int, std::string> error_pages;
+	size_t max_body_size;
 };
 
 #endif

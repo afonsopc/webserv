@@ -2,13 +2,21 @@
 	"servers": [
 		{
 			"port": 8080,
-			"host": "0.0.0.0",
+			"host": "localhost",
+			"max_body_size": 52428800,
 			"routes": [
 				{
 					"path": "/omelhorsite/*",
 					"redirect": "https://omelhorsite.pt",
 					"methods": [
 						"GET"
+					]
+				},
+				{
+					"path": "/upload",
+					"upload_dir": "uploads",
+					"methods": [
+						"POST"
 					]
 				},
 				{
@@ -25,15 +33,18 @@
 					"path": "/cgi/*",
 					"directory": "www/cgi",
 					"cgi": true,
+					"directory_listing": true,
 					"methods": ["GET", "POST"]
 				},
 				{
 					"path": "/*",
 					"directory": "www",
 					"directory_listing": true,
+					"upload_dir": "uploads",
 					"methods": [
 						"GET",
-						"POST"
+						"POST",
+						"DELETE"
 					]
 				}
 			],
@@ -46,10 +57,10 @@
 		},
 		{
 			"port": 1143,
-			"host": "0.0.0.0",
+			"host": "localhost",
 			"extensions": [
 				{"ext": "py", "exec": "/usr/bin/python3"},
-				{"ext": "php", "exec": "/usr/bin/php"},
+				{"ext": "php", "exec": "/usr/bin/php-cgi"},
 				{"ext": "rb", "exec": "/usr/bin/ruby"},
 				{"ext": "c", "exec": "/usr/bin/clang-cgi"},
 				{"ext": "cpp", "exec": "/usr/bin/clang-cgi"},
@@ -67,9 +78,9 @@
 		},
 		{
 			"port": 1144,
-			"host": "0.0.0.0",
+			"host": "localhost",
 			"extensions": [
-				{"ext": "php", "exec": "/usr/bin/php"}
+				{"ext": "php", "exec": "/usr/bin/php-cgi"}
 
 			],
 			"routes": [
@@ -84,15 +95,16 @@
 		},
 		{
 			"port": 1145,
-			"host": "0.0.0.0",
+			"host": "localhost",
 			"extensions": [
-				{"ext": "rb", "exec": "/usr/bin/ruby"}
+				{"ext": "rb", "exec": "/usr/bin/ruby"},
+				{"ext": "py", "exec": "/usr/bin/python3"}
 			],
 			"routes": [
 				{
 					"path": "/*",
 					"directory": "www/cgi",
-					"index": ["test.rb"],
+					"index": ["script.py"],
 					"cgi": true,
 					"methods": ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"]
 				}

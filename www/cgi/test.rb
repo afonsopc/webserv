@@ -1,5 +1,3 @@
-loop {}
-
 cookies = {}
 request = ARGV[0]
 request.split("\r\n").each do |line|

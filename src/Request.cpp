@@ -76,6 +76,47 @@ static std::string parse_http_path(const std::string &raw)
 	return (first_line.substr(first_space + 1, second_space - first_space - 1));
 }
 
+static int hex_to_int(char c)
+{
+	if (c >= '0' && c <= '9')
+		return (c - '0');
+	if (c >= 'a' && c <= 'f')
+		return (c - 'a' + 10);
+	if (c >= 'A' && c <= 'F')
+		return (c - 'A' + 10);
+	return (-1);
+}
+
+static std::string url_decode(const std::string &str)
+{
+	std::string result;
+	size_t i = 0;
+
+	while (i < str.length())
+	{
+		if (str[i] == '%' && i + 2 < str.length())
+		{
+			int high = hex_to_int(str[i + 1]);
+			int low = hex_to_int(str[i + 2]);
+			if (high >= 0 && low >= 0)
+			{
+				result += static_cast<char>(high * 16 + low);
+				i += 3;
+				continue;
+			}
+		}
+		else if (str[i] == '+')
+		{
+			result += ' ';
+			i++;
+			continue;
+		}
+		result += str[i];
+		i++;
+	}
+	return (result);
+}
+
 static Request::e_method parse_http_method(const std::string &raw)
 {
 	size_t pos = raw.find("\r\n");
@@ -105,7 +146,7 @@ static Request::e_method parse_http_method(const std::string &raw)
 
 Request::Request(const std::string &raw) : Http(parse_http_version(raw), parse_http_headers(raw), parse_http_body(raw)),
 										   method(parse_http_method(raw)),
-										   path(parse_http_path(raw)),
+										   path(url_decode(parse_http_path(raw))),
 										   raw(raw)
 {
 }

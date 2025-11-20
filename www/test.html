@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebServ Testing Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1em;
+            font-weight: 600;
+            color: #6c757d;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .tab.active {
+            background: white;
+            color: #2c3e50;
+            border-bottom: 3px solid #2c3e50;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .test-section {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+
+        .test-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="file"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #2c3e50;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(44, 62, 80, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .method-btn {
+            padding: 8px 16px;
+            font-size: 0.9em;
+            min-width: 80px;
+        }
+
+        .method-btn.selected {
+            background: #2c3e50;
+            color: white;
+        }
+
+        .response-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .response-body {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .response-body pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2c3e50;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .server-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .server-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        .server-card h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .server-card ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .server-card li {
+            padding: 5px 0;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .quick-test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .quick-test-btn {
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .quick-test-btn:hover {
+            background: #2c3e50;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(44, 62, 80, 0.3);
+        }
+
+        .headers-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 WebServ Testing Interface</h1>
+            <p>Comprehensive HTTP Server Testing Tool</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('overview', this)">📊 Overview</button>
+            <button class="tab" onclick="switchTab('http', this)">🌐 HTTP Requests</button>
+            <button class="tab" onclick="switchTab('upload', this)">📤 File Upload</button>
+            <button class="tab" onclick="switchTab('cgi', this)">⚙️ CGI Tests</button>
+            <button class="tab" onclick="switchTab('methods', this)">🔧 HTTP Methods</button>
+            <button class="tab" onclick="switchTab('errors', this)">❌ Error Pages</button>
+        </div>
+
+        <div class="content">
+            <!-- Overview Section -->
+            <div id="overview" class="test-section active">
+                <div class="info-box">
+                    <h3>🎯 Server Configuration</h3>
+                    <p>Your WebServ is configured with multiple servers on different ports. Use this interface to test all functionality.</p>
+                    <div style="margin-top: 15px;">
+                        <label style="font-weight: 600; margin-bottom: 5px; display: block;">Base URL Configuration:</label>
+                        <input type="text" id="base-url-config" style="width: 100%; padding: 8px; border: 2px solid #2c3e50; border-radius: 4px;" placeholder="http://localhost" oninput="updateBaseUrl()">
+                        <small style="color: #6c757d; display: block; margin-top: 5px;">
+                            Current: <strong id="current-base-url"></strong> (Leave empty to use current page origin)
+                        </small>
+                    </div>
+                </div>
+
+                <div class="server-list">
+                    <div class="server-card">
+                        <h4>Port 8080 - Main Server</h4>
+                        <ul>
+                            <li>✓ Static file serving</li>
+                            <li>✓ Directory listing</li>
+                            <li>✓ CGI support</li>
+                            <li>✓ Redirects</li>
+                        </ul>
+                    </div>
+                    <div class="server-card">
+                        <h4>Port 1143 - Python Proxy</h4>
+                        <ul>
+                            <li>✓ Python CGI (proxy.py)</li>
+                            <li>✓ All HTTP methods</li>
+                            <li>✓ Reverse proxy</li>
+                        </ul>
+                    </div>
+                    <div class="server-card">
+                        <h4>Port 1144 - PHP Server</h4>
+                        <ul>
+                            <li>✓ PHP-CGI support</li>
+                            <li>✓ test.php execution</li>
+                            <li>✓ All HTTP methods</li>
+                        </ul>
+                    </div>
+                    <div class="server-card">
+                        <h4>Port 1145 - Ruby Server</h4>
+                        <ul>
+                            <li>✓ Ruby CGI support</li>
+                            <li>✓ test.rb execution</li>
+                            <li>✓ All HTTP methods</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">🚀 Quick Tests</h3>
+                <div class="quick-test-grid">
+                    <div class="quick-test-btn" onclick="quickTest('/')">
+                        <strong>GET /</strong><br>
+                        <small>Main page</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="quickTest('/cgi/')">
+                        <strong>CGI Directory</strong><br>
+                        <small>Directory listing</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="quickTest('/nonexistent')">
+                        <strong>404 Error</strong><br>
+                        <small>Test error page</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="quickTestPort(1143, '/')">
+                        <strong>Python CGI</strong><br>
+                        <small>Port 1143</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="quickTestPort(1144, '/')">
+                        <strong>PHP CGI</strong><br>
+                        <small>Port 1144</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="quickTestPort(1145, '/')">
+                        <strong>Ruby CGI</strong><br>
+                        <small>Port 1145</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HTTP Requests Section -->
+            <div id="http" class="test-section">
+                <div class="info-box">
+                    <h3>🌐 Custom HTTP Request Builder</h3>
+                    <p>Build and send custom HTTP requests to test your server's response handling.</p>
+                </div>
+
+                <div class="form-group">
+                    <label>HTTP Method</label>
+                    <div class="button-group">
+                        <button class="btn-secondary method-btn selected" onclick="selectMethod('GET', this)">GET</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('POST', this)">POST</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('PUT', this)">PUT</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('DELETE', this)">DELETE</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('PATCH', this)">PATCH</button>
+                        <button class="btn-secondary method-btn" onclick="selectMethod('OPTIONS', this)">OPTIONS</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="http-url">URL Path (relative to base URL)</label>
+                    <input type="text" id="http-url" placeholder="/path" value="/">
+                </div>
+
+                <div class="form-group">
+                    <label>Custom Headers</label>
+                    <div id="headers-container">
+                        <div class="headers-grid">
+                            <input type="text" placeholder="Header name" class="header-name">
+                            <input type="text" placeholder="Header value" class="header-value">
+                            <button class="btn-danger" onclick="removeHeader(this)">✕</button>
+                        </div>
+                    </div>
+                    <button class="btn-secondary" onclick="addHeader()" style="margin-top: 10px;">+ Add Header</button>
+                </div>
+
+                <div class="form-group" id="body-group">
+                    <label for="http-body">Request Body (JSON, Form data, etc.)</label>
+                    <textarea id="http-body" placeholder='{"key": "value"}'></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="sendHttpRequest()">
+                        <span id="http-send-text">Send Request</span>
+                        <span id="http-loading" class="loading hidden"></span>
+                    </button>
+                    <button class="btn-secondary" onclick="clearHttpForm()">Clear</button>
+                </div>
+
+                <div id="http-response" class="response-container hidden">
+                    <div class="response-header">
+                        <h3>Response</h3>
+                        <span id="http-status" class="status-badge"></span>
+                    </div>
+                    <div class="response-body">
+                        <pre id="http-response-body"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Upload Section -->
+            <div id="upload" class="test-section">
+                <div class="info-box">
+                    <h3>📤 File Upload Testing</h3>
+                    <p>Test native file upload functionality built into webserv. Files are saved to the <code>uploads/</code> directory.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="upload-url">Upload Path</label>
+                    <input type="text" id="upload-url" value="/upload" placeholder="/upload">
+                    <small style="color: #6c757d; display: block; margin-top: 5px;">
+                        Use <code>/upload</code> (dedicated endpoint) or <code>/</code> (general route with upload_dir)
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="upload-port">Port (optional)</label>
+                    <select id="upload-port">
+                        <option value="">Current (8080)</option>
+                        <option value="1143">1143 - Python CGI</option>
+                        <option value="1144">1144 - PHP CGI</option>
+                        <option value="1145">1145 - Ruby CGI</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="upload-file">Select File(s)</label>
+                    <input type="file" id="upload-file" multiple>
+                </div>
+
+                <div class="form-group">
+                    <label for="upload-field">Field Name</label>
+                    <input type="text" id="upload-field" value="file" placeholder="file">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="uploadFile()">
+                        <span id="upload-send-text">Upload File</span>
+                        <span id="upload-loading" class="loading hidden"></span>
+                    </button>
+                    <button class="btn-secondary" onclick="createTestFile()">Generate Test File</button>
+                </div>
+
+                <div id="upload-response" class="response-container hidden">
+                    <div class="response-header">
+                        <h3>Upload Response</h3>
+                        <span id="upload-status" class="status-badge"></span>
+                    </div>
+                    <div class="response-body">
+                        <pre id="upload-response-body"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CGI Tests Section -->
+            <div id="cgi" class="test-section">
+                <div class="info-box">
+                    <h3>⚙️ CGI Script Testing</h3>
+                    <p>Test CGI execution with Python, PHP, and Ruby scripts.</p>
+                </div>
+
+                <div class="form-group">
+                    <label>CGI Script</label>
+                    <select id="cgi-script" onchange="updateCgiUrl()">
+                        <option value="/cgi/script.py">Python - script.py (Port 8080)</option>
+                        <option value="1143:/">Python Proxy - proxy.py (Port 1143)</option>
+                        <option value="1144:/">PHP - test.php (Port 1144)</option>
+                        <option value="1145:/">Ruby - test.rb (Port 1145)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="cgi-url">CGI Path</label>
+                    <input type="text" id="cgi-url" value="/cgi/script.py">
+                </div>
+
+                <div class="form-group">
+                    <label for="cgi-query">Query String (optional)</label>
+                    <input type="text" id="cgi-query" placeholder="name=value&key=value">
+                </div>
+
+                <div class="form-group">
+                    <label for="cgi-body">POST Data (optional)</label>
+                    <textarea id="cgi-body" placeholder='{"test": "data"}'></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="testCgi('GET')">GET Request</button>
+                    <button class="btn-success" onclick="testCgi('POST')">POST Request</button>
+                    <button class="btn-secondary" onclick="testCgiEnvironment()">Test Environment Vars</button>
+                </div>
+
+                <div id="cgi-response" class="response-container hidden">
+                    <div class="response-header">
+                        <h3>CGI Response</h3>
+                        <span id="cgi-status" class="status-badge"></span>
+                    </div>
+                    <div class="response-body">
+                        <pre id="cgi-response-body"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HTTP Methods Section -->
+            <div id="methods" class="test-section">
+                <div class="info-box">
+                    <h3>🔧 HTTP Methods Testing</h3>
+                    <p>Test all supported HTTP methods on various endpoints.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="methods-url">Test Path</label>
+                    <input type="text" id="methods-url" value="/" placeholder="/">
+                    <small style="color: #6c757d; display: block; margin-top: 5px;">
+                        Use format "PORT:PATH" to test different ports (e.g., "1143:/" or just "/" for current port)
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="methods-body">Request Body (for POST, PUT, PATCH)</label>
+                    <textarea id="methods-body" placeholder='{"test": "data"}'>{"message": "Hello from WebServ test!"}</textarea>
+                </div>
+
+                <div style="margin: 20px 0;">
+                    <h3 style="margin-bottom: 15px;">Test Individual Methods</h3>
+                    <div class="button-group">
+                        <button class="btn-primary" onclick="testMethod('GET')">Test GET</button>
+                        <button class="btn-success" onclick="testMethod('POST')">Test POST</button>
+                        <button class="btn-primary" onclick="testMethod('PUT')">Test PUT</button>
+                        <button class="btn-danger" onclick="testMethod('DELETE')">Test DELETE</button>
+                        <button class="btn-secondary" onclick="testMethod('PATCH')">Test PATCH</button>
+                        <button class="btn-secondary" onclick="testMethod('OPTIONS')">Test OPTIONS</button>
+                        <button class="btn-secondary" onclick="testMethod('HEAD')">Test HEAD</button>
+                    </div>
+                </div>
+
+                <div style="margin: 20px 0;">
+                    <button class="btn-primary" onclick="testAllMethods()">🚀 Test All Methods</button>
+                </div>
+
+                <div id="methods-response" class="response-container hidden">
+                    <div class="response-header">
+                        <h3>Methods Test Results</h3>
+                    </div>
+                    <div class="response-body">
+                        <pre id="methods-response-body"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Pages Section -->
+            <div id="errors" class="test-section">
+                <div class="info-box">
+                    <h3>❌ Error Pages Testing</h3>
+                    <p>Test various HTTP error responses and custom error pages.</p>
+                </div>
+
+                <div class="quick-test-grid">
+                    <div class="quick-test-btn" onclick="testError(400)">
+                        <strong>400</strong><br>
+                        <small>Bad Request</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="testError(403)">
+                        <strong>403</strong><br>
+                        <small>Forbidden</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="testError(404)">
+                        <strong>404</strong><br>
+                        <small>Not Found</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="testError(405)">
+                        <strong>405</strong><br>
+                        <small>Method Not Allowed</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="testError(413)">
+                        <strong>413</strong><br>
+                        <small>Payload Too Large</small>
+                    </div>
+                    <div class="quick-test-btn" onclick="testError(500)">
+                        <strong>500</strong><br>
+                        <small>Internal Server Error</small>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 30px;">
+                    <label for="error-custom">Test Custom Error URL</label>
+                    <input type="text" id="error-custom" placeholder="http://localhost:8080/nonexistent">
+                    <button class="btn-primary" onclick="testCustomError()" style="margin-top: 10px;">Test URL</button>
+                </div>
+
+                <div id="error-response" class="response-container hidden">
+                    <div class="response-header">
+                        <h3>Error Response</h3>
+                        <span id="error-status" class="status-badge"></span>
+                    </div>
+                    <div class="response-body">
+                        <pre id="error-response-body"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentMethod = 'GET';
+        let baseUrl = window.location.origin;
+
+        window.addEventListener('DOMContentLoaded', function() {
+            updateCurrentBaseUrl();
+        });
+
+        function updateBaseUrl() {
+            const input = document.getElementById('base-url-config');
+            baseUrl = input.value.trim() || window.location.origin;
+            updateCurrentBaseUrl();
+        }
+
+        function updateCurrentBaseUrl() {
+            document.getElementById('current-base-url').textContent = baseUrl;
+        }
+
+        function buildUrl(pathOrUrl, port = null) {
+            if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+                return pathOrUrl;
+            }
+            
+            if (pathOrUrl.includes(':') && !pathOrUrl.startsWith('/')) {
+                const parts = pathOrUrl.split(':');
+                port = parts[0];
+                pathOrUrl = parts[1];
+            }
+            
+            const url = new URL(baseUrl);
+            if (port) {
+                url.port = port;
+            }
+            url.pathname = pathOrUrl.startsWith('/') ? pathOrUrl : '/' + pathOrUrl;
+            return url.toString();
+        }
+
+        function switchTab(tabName, element) {
+            document.querySelectorAll('.test-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(tabName).classList.add('active');
+            
+            if (element) {
+                element.classList.add('active');
+            }
+        }
+
+        function selectMethod(method, element) {
+            currentMethod = method;
+            document.querySelectorAll('.method-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            if (element) {
+                element.classList.add('selected');
+            }
+            
+            const bodyGroup = document.getElementById('body-group');
+            if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+                bodyGroup.style.display = 'none';
+            } else {
+                bodyGroup.style.display = 'block';
+            }
+        }
+
+        function addHeader() {
+            const container = document.getElementById('headers-container');
+            const div = document.createElement('div');
+            div.className = 'headers-grid';
+            div.innerHTML = `
+                <input type="text" placeholder="Header name" class="header-name">
+                <input type="text" placeholder="Header value" class="header-value">
+                <button class="btn-danger" onclick="removeHeader(this)">✕</button>
+            `;
+            container.appendChild(div);
+        }
+
+        function removeHeader(btn) {
+            btn.parentElement.remove();
+        }
+
+        async function sendHttpRequest() {
+            const urlPath = document.getElementById('http-url').value;
+            const url = buildUrl(urlPath);
+            const body = document.getElementById('http-body').value;
+            
+            const headers = {};
+            document.querySelectorAll('#headers-container .headers-grid').forEach(row => {
+                const name = row.querySelector('.header-name').value;
+                const value = row.querySelector('.header-value').value;
+                if (name && value) {
+                    headers[name] = value;
+                }
+            });
+
+            showLoading('http');
+            
+            try {
+                const options = {
+                    method: currentMethod,
+                    headers: headers
+                };
+                
+                if (currentMethod !== 'GET' && currentMethod !== 'HEAD' && body) {
+                    options.body = body;
+                }
+                
+                const response = await fetch(url, options);
+                const responseText = await response.text();
+                
+                showResponse('http', response.status, responseText, response.headers);
+            } catch (error) {
+                showResponse('http', 0, `Error: ${error.message}`);
+            }
+            
+            hideLoading('http');
+        }
+
+        async function uploadFile() {
+            const urlPath = document.getElementById('upload-url').value;
+            const port = document.getElementById('upload-port').value;
+            const url = port ? buildUrl(urlPath, port) : buildUrl(urlPath);
+            const fileInput = document.getElementById('upload-file');
+            const fieldName = document.getElementById('upload-field').value || 'file';
+            
+            if (!fileInput || !fileInput.files || !fileInput.files.length) {
+                alert('Please select a file to upload');
+                return;
+            }
+            
+            const formData = new FormData();
+            for (let i = 0; i < fileInput.files.length; i++) {
+                const file = fileInput.files[i];
+                formData.append(fieldName, file, file.name);
+            }
+            
+            showLoading('upload');
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const responseText = await response.text();
+                showResponse('upload', response.status, responseText);
+            } catch (error) {
+                showResponse('upload', 0, `Error: ${error.message}`);
+            } finally {
+                hideLoading('upload');
+            }
+        }
+
+        function createTestFile() {
+            const content = 'This is a test file generated by WebServ Testing Interface.\n' +
+                           'Timestamp: ' + new Date().toISOString() + '\n' +
+                           'Random data: ' + Math.random().toString(36).substring(7);
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const file = new File([blob], 'test-' + Date.now() + '.txt', { type: 'text/plain' });
+            
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            document.getElementById('upload-file').files = dataTransfer.files;
+            
+            alert('Test file generated and selected!');
+        }
+
+        function updateCgiUrl() {
+            const select = document.getElementById('cgi-script');
+            document.getElementById('cgi-url').value = select.value;
+        }
+
+        async function testCgi(method) {
+            let urlPath = document.getElementById('cgi-url').value;
+            let url = buildUrl(urlPath);
+            const query = document.getElementById('cgi-query').value;
+            const body = document.getElementById('cgi-body').value;
+            
+            if (query) {
+                url += (url.includes('?') ? '&' : '?') + query;
+            }
+            
+            try {
+                const options = { method: method };
+                if (method === 'POST' && body) {
+                    options.body = body;
+                    options.headers = { 'Content-Type': 'application/json' };
+                }
+                
+                const response = await fetch(url, options);
+                const responseText = await response.text();
+                
+                showResponse('cgi', response.status, responseText);
+            } catch (error) {
+                showResponse('cgi', 0, `Error: ${error.message}`);
+            }
+        }
+
+        async function testCgiEnvironment() {
+            const url = buildUrl('/cgi/script.py?test=environment');
+            
+            try {
+                const response = await fetch(url);
+                const responseText = await response.text();
+                showResponse('cgi', response.status, responseText);
+            } catch (error) {
+                showResponse('cgi', 0, `Error: ${error.message}`);
+            }
+        }
+
+        async function testMethod(method) {
+            const urlPath = document.getElementById('methods-url').value;
+            const url = buildUrl(urlPath);
+            const body = document.getElementById('methods-body').value;
+            
+            try {
+                const options = { method: method };
+                
+                if ((method === 'POST' || method === 'PUT' || method === 'PATCH') && body) {
+                    options.body = body;
+                    options.headers = { 'Content-Type': 'application/json' };
+                }
+                
+                const response = await fetch(url, options);
+                const responseText = await response.text();
+                
+                const result = `Method: ${method}\nStatus: ${response.status} ${response.statusText}\n\n${responseText}`;
+                showResponse('methods', response.status, result);
+            } catch (error) {
+                showResponse('methods', 0, `Method: ${method}\nError: ${error.message}`);
+            }
+        }
+
+        async function testAllMethods() {
+            const urlPath = document.getElementById('methods-url').value;
+            const url = buildUrl(urlPath);
+            const body = document.getElementById('methods-body').value;
+            const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
+            
+            let results = 'Testing all HTTP methods...\n\n';
+            showResponse('methods', 0, results);
+            
+            for (const method of methods) {
+                try {
+                    const options = { method: method };
+                    
+                    if ((method === 'POST' || method === 'PUT' || method === 'PATCH') && body) {
+                        options.body = body;
+                        options.headers = { 'Content-Type': 'application/json' };
+                    }
+                    
+                    const response = await fetch(url, options);
+                    const status = response.status;
+                    const statusText = response.statusText;
+                    
+                    results += `✓ ${method}: ${status} ${statusText}\n`;
+                } catch (error) {
+                    results += `✗ ${method}: ${error.message}\n`;
+                }
+                
+                showResponse('methods', 0, results);
+            }
+            
+            results += '\n✅ All methods tested!';
+            showResponse('methods', 200, results);
+        }
+
+        async function testError(code) {
+            const paths = {
+                400: '/bad-request-test',
+                403: '/forbidden-test',
+                404: '/this-page-does-not-exist',
+                405: '/',
+                413: '/',
+                500: '/error-test'
+            };
+            
+            const url = buildUrl(paths[code] || '/error-test');
+            
+            try {
+                let options = { method: 'GET' };
+                
+                if (code === 405) {
+                    options.method = 'TRACE';
+                }
+                
+                const response = await fetch(url, options);
+                const responseText = await response.text();
+                
+                showResponse('error', response.status, responseText);
+            } catch (error) {
+                showResponse('error', 0, `Error: ${error.message}`);
+            }
+        }
+
+        async function testCustomError() {
+            const urlPath = document.getElementById('error-custom').value;
+            
+            if (!urlPath) {
+                alert('Please enter a URL');
+                return;
+            }
+            
+            const url = buildUrl(urlPath);
+            
+            try {
+                const response = await fetch(url);
+                const responseText = await response.text();
+                showResponse('error', response.status, responseText);
+            } catch (error) {
+                showResponse('error', 0, `Error: ${error.message}`);
+            }
+        }
+
+        async function quickTest(path) {
+            try {
+                const url = buildUrl(path);
+                const response = await fetch(url);
+                const responseText = await response.text();
+                
+                switchTab('http');
+                document.getElementById('http-url').value = path;
+                showResponse('http', response.status, responseText);
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function quickTestPort(port, path) {
+            try {
+                const url = buildUrl(path, port);
+                const response = await fetch(url);
+                const responseText = await response.text();
+                
+                switchTab('http');
+                document.getElementById('http-url').value = `${port}:${path}`;
+                showResponse('http', response.status, responseText);
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        function showLoading(section) {
+            document.getElementById(`${section}-send-text`).classList.add('hidden');
+            document.getElementById(`${section}-loading`).classList.remove('hidden');
+        }
+
+        function hideLoading(section) {
+            document.getElementById(`${section}-send-text`).classList.remove('hidden');
+            document.getElementById(`${section}-loading`).classList.add('hidden');
+        }
+
+        function showResponse(section, status, body, headers) {
+            const responseDiv = document.getElementById(`${section}-response`);
+            const statusBadge = document.getElementById(`${section}-status`);
+            const responseBody = document.getElementById(`${section}-response-body`);
+            
+            responseDiv.classList.remove('hidden');
+            
+            statusBadge.textContent = status ? `${status}` : 'Error';
+            statusBadge.className = 'status-badge';
+            
+            if (status >= 200 && status < 300) {
+                statusBadge.classList.add('status-success');
+            } else if (status >= 400) {
+                statusBadge.classList.add('status-error');
+            } else {
+                statusBadge.classList.add('status-info');
+            }
+            
+            try {
+                const json = JSON.parse(body);
+                responseBody.textContent = JSON.stringify(json, null, 2);
+            } catch {
+                responseBody.textContent = body;
+            }
+            
+            responseDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function clearHttpForm() {
+            document.getElementById('http-url').value = '/';
+            document.getElementById('http-body').value = '';
+            document.getElementById('headers-container').innerHTML = `
+                <div class="headers-grid">
+                    <input type="text" placeholder="Header name" class="header-name">
+                    <input type="text" placeholder="Header value" class="header-value">
+                    <button class="btn-danger" onclick="removeHeader(this)">✕</button>
+                </div>
+            `;
+            document.getElementById('http-response').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
