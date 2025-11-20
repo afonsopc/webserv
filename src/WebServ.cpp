@@ -427,8 +427,6 @@ void WebServ::loop(void)
 	signal(SIGTERM, signal_handler);
 
 	std::vector<int> server_fds;
-	std::cout << "\nServers loaded:\n"
-			  << std::endl;
 	for (size_t i = 0; i < servers.size(); ++i)
 	{
 		std::cout << "Starting server on http://" << servers[i]->getHost() << ":" << servers[i]->getPort() << std::endl;
