@@ -201,8 +201,14 @@ static std::string getStatusMessage(int status)
 	return "XXX Unknown";
 }
 
-std::string Response::stringify() const
+std::string Response::stringify(const std::string &method, const std::string &path) const
 {
+	if (!method.empty())
+	{
+		std::cout << "Request:  " << method << " " << path << std::endl;
+		std::cout << "Response: " << getStatusMessage(getStatus()) << std::endl
+				  << std::endl;
+	}
 	std::string str;
 	str += versionToString(getVersion()) + " " + getStatusMessage(getStatus()) + "\r\n";
 	str += getHeaders().headerify() + "\r\n\r\n";

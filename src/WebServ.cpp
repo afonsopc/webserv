@@ -138,9 +138,8 @@ bool WebServ::processRequest(int client_fd, const std::string &complete_request)
 	}
 
 	const char *method_names[] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "UNKNOWN"};
-	std::cout << method_names[req.getMethod()] << " - " << res->getStatus() << " | Path: " << req.getPath() << std::endl;
 
-	std::string response_str = res->stringify();
+	std::string response_str = res->stringify(method_names[req.getMethod()], req.getPath());
 	queueWrite(client_fd, response_str, keep_alive);
 	delete res;
 	return (keep_alive);
@@ -440,7 +439,8 @@ void WebServ::loop(void)
 		}
 		server_fds.push_back(servers[i]->getSocket().getFd());
 	}
-	std::cout << std::endl;
+	std::cout << "\nLogs:\n"
+			  << std::endl;
 	if (server_fds.empty())
 	{
 		std::cerr << "No servers could be started. Exiting..." << std::endl;
