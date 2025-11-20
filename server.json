@@ -14,7 +14,7 @@
 				},
 				{
 					"path": "/upload",
-					"upload_dir": "uploads",
+					"upload_dir": "www/uploads",
 					"methods": [
 						"POST"
 					]
@@ -40,7 +40,7 @@
 					"path": "/*",
 					"directory": "www",
 					"directory_listing": true,
-					"upload_dir": "uploads",
+					"upload_dir": "www/uploads",
 					"methods": [
 						"GET",
 						"POST",

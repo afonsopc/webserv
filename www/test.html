@@ -93,6 +93,59 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        .spinning-text {
+            font-size: 1rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .text-container {
+            position: relative;
+            display: inline-block;
+            perspective: 500px;
+            transform-style: preserve-3d;
+            animation: coolSpin 20s linear infinite;
+        }
+
+        .text-layer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            display: inline-block;
+            transform-style: preserve-3d;
+            white-space: nowrap;
+            color: #444444;
+        }
+
+        .text-layer:last-child, .text-layer:nth-child(2) {
+            color: #ffffff;
+        }
+
+        @keyframes coolSpin {
+            0% {
+                transform: rotateX(0) rotateY(0deg);
+            }
+            50% {
+                transform: rotateX(-20deg) rotateY(180deg);
+            }
+            100% {
+                transform: rotateX(0) rotateY(360deg);
+            }
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .spinning-text {
+                font-size: 2.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .spinning-text {
+                font-size: 1.8rem;
+            }
+        }
         .form-group {
             margin-bottom: 20px;
         }
@@ -342,21 +395,79 @@
         .hidden {
             display: none;
         }
+
+        /* Matrix Effect */
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.1;
+            pointer-events: none;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
     </style>
 </head>
 <body>
+    <canvas id="matrix-canvas"></canvas>
     <div class="container">
         <div class="header">
-            <h1>🚀 WebServ Testing Interface</h1>
-            <p>Comprehensive HTTP Server Testing Tool</p>
+            <button class="theme-toggle" onclick="toggleMatrix()">🕶️ Matrix Mode</button>
+
+    <div class="spinning-text"><span class="text-container" id="textContainer"></span></div>
+
+    <script>
+        const TEXT_CONTENT = "🚀 WebServ Testing Interface";
+        const NUMBER_OF_LAYERS = 25;
+        const Z_STEP = 1;
+
+        function generateTextLayers() {
+            const container = document.getElementById('textContainer');
+            
+            for (let i = 0; i < NUMBER_OF_LAYERS; i++) {
+                const layer = document.createElement('h1');
+                layer.className = 'text-layer';
+                layer.textContent = TEXT_CONTENT;
+                
+                const zValue = i * Z_STEP;
+                layer.style.transform = `translateZ(${zValue}px)`;
+                
+                if (i === 0) {
+                    layer.style.position = 'static';
+                    layer.style.opacity = '0';
+                }
+                
+                container.appendChild(layer);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', generateTextLayers);
+    </script>
         </div>
 
         <div class="tabs">
             <button class="tab active" onclick="switchTab('overview', this)">📊 Overview</button>
             <button class="tab" onclick="switchTab('http', this)">🌐 HTTP Requests</button>
             <button class="tab" onclick="switchTab('upload', this)">📤 File Upload</button>
-            <button class="tab" onclick="switchTab('cgi', this)">⚙️ CGI Tests</button>
-            <button class="tab" onclick="switchTab('methods', this)">🔧 HTTP Methods</button>
             <button class="tab" onclick="switchTab('errors', this)">❌ Error Pages</button>
         </div>
 
@@ -509,7 +620,7 @@
 
                 <div class="form-group">
                     <label for="upload-url">Upload Path</label>
-                    <input type="text" id="upload-url" value="/upload" placeholder="/upload">
+                    <input type="text" id="upload-url" value="" disabled placeholder="/upload">
                     <small style="color: #6c757d; display: block; margin-top: 5px;">
                         Use <code>/upload</code> (dedicated endpoint) or <code>/</code> (general route with upload_dir)
                     </small>
@@ -554,102 +665,6 @@
                 </div>
             </div>
 
-            <!-- CGI Tests Section -->
-            <div id="cgi" class="test-section">
-                <div class="info-box">
-                    <h3>⚙️ CGI Script Testing</h3>
-                    <p>Test CGI execution with Python, PHP, and Ruby scripts.</p>
-                </div>
-
-                <div class="form-group">
-                    <label>CGI Script</label>
-                    <select id="cgi-script" onchange="updateCgiUrl()">
-                        <option value="/cgi/script.py">Python - script.py (Port 8080)</option>
-                        <option value="1143:/">Python Proxy - proxy.py (Port 1143)</option>
-                        <option value="1144:/">PHP - test.php (Port 1144)</option>
-                        <option value="1145:/">Ruby - test.rb (Port 1145)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="cgi-url">CGI Path</label>
-                    <input type="text" id="cgi-url" value="/cgi/script.py">
-                </div>
-
-                <div class="form-group">
-                    <label for="cgi-query">Query String (optional)</label>
-                    <input type="text" id="cgi-query" placeholder="name=value&key=value">
-                </div>
-
-                <div class="form-group">
-                    <label for="cgi-body">POST Data (optional)</label>
-                    <textarea id="cgi-body" placeholder='{"test": "data"}'></textarea>
-                </div>
-
-                <div class="button-group">
-                    <button class="btn-primary" onclick="testCgi('GET')">GET Request</button>
-                    <button class="btn-success" onclick="testCgi('POST')">POST Request</button>
-                    <button class="btn-secondary" onclick="testCgiEnvironment()">Test Environment Vars</button>
-                </div>
-
-                <div id="cgi-response" class="response-container hidden">
-                    <div class="response-header">
-                        <h3>CGI Response</h3>
-                        <span id="cgi-status" class="status-badge"></span>
-                    </div>
-                    <div class="response-body">
-                        <pre id="cgi-response-body"></pre>
-                    </div>
-                </div>
-            </div>
-
-            <!-- HTTP Methods Section -->
-            <div id="methods" class="test-section">
-                <div class="info-box">
-                    <h3>🔧 HTTP Methods Testing</h3>
-                    <p>Test all supported HTTP methods on various endpoints.</p>
-                </div>
-
-                <div class="form-group">
-                    <label for="methods-url">Test Path</label>
-                    <input type="text" id="methods-url" value="/" placeholder="/">
-                    <small style="color: #6c757d; display: block; margin-top: 5px;">
-                        Use format "PORT:PATH" to test different ports (e.g., "1143:/" or just "/" for current port)
-                    </small>
-                </div>
-
-                <div class="form-group">
-                    <label for="methods-body">Request Body (for POST, PUT, PATCH)</label>
-                    <textarea id="methods-body" placeholder='{"test": "data"}'>{"message": "Hello from WebServ test!"}</textarea>
-                </div>
-
-                <div style="margin: 20px 0;">
-                    <h3 style="margin-bottom: 15px;">Test Individual Methods</h3>
-                    <div class="button-group">
-                        <button class="btn-primary" onclick="testMethod('GET')">Test GET</button>
-                        <button class="btn-success" onclick="testMethod('POST')">Test POST</button>
-                        <button class="btn-primary" onclick="testMethod('PUT')">Test PUT</button>
-                        <button class="btn-danger" onclick="testMethod('DELETE')">Test DELETE</button>
-                        <button class="btn-secondary" onclick="testMethod('PATCH')">Test PATCH</button>
-                        <button class="btn-secondary" onclick="testMethod('OPTIONS')">Test OPTIONS</button>
-                        <button class="btn-secondary" onclick="testMethod('HEAD')">Test HEAD</button>
-                    </div>
-                </div>
-
-                <div style="margin: 20px 0;">
-                    <button class="btn-primary" onclick="testAllMethods()">🚀 Test All Methods</button>
-                </div>
-
-                <div id="methods-response" class="response-container hidden">
-                    <div class="response-header">
-                        <h3>Methods Test Results</h3>
-                    </div>
-                    <div class="response-body">
-                        <pre id="methods-response-body"></pre>
-                    </div>
-                </div>
-            </div>
-
             <!-- Error Pages Section -->
             <div id="errors" class="test-section">
                 <div class="info-box">
@@ -658,14 +673,6 @@
                 </div>
 
                 <div class="quick-test-grid">
-                    <div class="quick-test-btn" onclick="testError(400)">
-                        <strong>400</strong><br>
-                        <small>Bad Request</small>
-                    </div>
-                    <div class="quick-test-btn" onclick="testError(403)">
-                        <strong>403</strong><br>
-                        <small>Forbidden</small>
-                    </div>
                     <div class="quick-test-btn" onclick="testError(404)">
                         <strong>404</strong><br>
                         <small>Not Found</small>
@@ -677,10 +684,6 @@
                     <div class="quick-test-btn" onclick="testError(413)">
                         <strong>413</strong><br>
                         <small>Payload Too Large</small>
-                    </div>
-                    <div class="quick-test-btn" onclick="testError(500)">
-                        <strong>500</strong><br>
-                        <small>Internal Server Error</small>
                     </div>
                 </div>
 
@@ -993,6 +996,11 @@
                 
                 if (code === 405) {
                     options.method = 'TRACE';
+                } else if (code === 413) {
+                    options.method = 'POST';
+                    // Create a large blob > 50MB
+                    const blob = new Blob([new Uint8Array(52428801)]);
+                    options.body = blob;
                 }
                 
                 const response = await fetch(url, options);
@@ -1101,6 +1109,80 @@
             `;
             document.getElementById('http-response').classList.add('hidden');
         }
+
+        // Matrix Effect
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        let matrixInterval;
+        let isMatrixActive = true;
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
+        const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const nums = '0123456789';
+        const alphabet = katakana + latin + nums;
+
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+
+        const rainDrops = [];
+        for (let x = 0; x < columns; x++) {
+            rainDrops[x] = 1;
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#0F0';
+            ctx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < rainDrops.length; i++) {
+                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    rainDrops[i] = 0;
+                }
+                rainDrops[i]++;
+            }
+        }
+
+        function toggleMatrix() {
+            isMatrixActive = !isMatrixActive;
+            const btn = document.querySelector('.theme-toggle');
+            
+            if (isMatrixActive) {
+                matrixInterval = setInterval(draw, 30);
+                canvas.style.display = 'block';
+                btn.textContent = '🕶️ Disable Matrix';
+                btn.style.background = 'rgba(0, 255, 0, 0.2)';
+                btn.style.color = '#0F0';
+                btn.style.borderColor = '#0F0';
+            } else {
+                clearInterval(matrixInterval);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                canvas.style.display = 'none';
+                btn.textContent = '🕶️ Matrix Mode';
+                btn.style.background = 'rgba(255, 255, 255, 0.2)';
+                btn.style.color = 'white';
+                btn.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // Start Matrix effect
+        matrixInterval = setInterval(draw, 30);
+        document.querySelector('.theme-toggle').textContent = '🕶️ Disable Matrix';
+        document.querySelector('.theme-toggle').style.background = 'rgba(0, 255, 0, 0.2)';
+        document.querySelector('.theme-toggle').style.color = '#0F0';
+        document.querySelector('.theme-toggle').style.borderColor = '#0F0';
     </script>
 </body>
 </html>
